@@ -11,32 +11,31 @@ from User_Character import User_Character
 #load_dotenv()
 #client = genai.Client(api_key=os.getenv("GEMINI_PAID_API_KEY"))
 
-def generate_images(client: genai.Client, chars_data: list[User_Character], scenes: list[Scene]):
+def generate_images(client: genai.Client, story_name: str, chars_data: list[User_Character], scenes: list[Scene]):
     generated_image_data = []
     output_dir = "output"
     os.makedirs(output_dir, exist_ok=True) # Creates 'assets' if it doesn't exist
     uploaded_reference_images = []
     for char_data in chars_data:
-        uploaded_file = client.files.upload(file=f"{char_data.image_url}/{char_data.image_name}")
+        uploaded_file = client.files.upload(file=char_data.image_url)
         uploaded_reference_images.append(uploaded_file)
         print(f"Pre-uploaded reference image for analysis: {char_data.image_url}")
     for i, scene in enumerate(scenes):
         # --- THIS IS THE PROMPT YOU WOULD PASS TO THE IMAGEN API ---
         # It's the `image_generation_prompt` directly.
         # You can add a prefix if you want, but the detailed prompt is what matters.
-        # imagen_prompt = scene['image_generation_prompt']
+        # imagen_prompt = scene.'image_generation_prompt']
         
         # You could also add more general framing like this, but the core is the detailed prompt:
         prompt = (
             f"Without any inappropriate or NSFW content, create an image."
-            f"This is scene {scene.scene_nb} of a visual narrative novel."
-            f"The scene title is '{scene.title}'. "
-            f"Here is the narrative text of this scene '{scene.narrative_text}'"
-            f"Here is the detailed visual description and art style guidance for this specific scene: "
-            f"{scene.image_prompt}"
+            f"No text, speech bubbles, or captions should appear in the image."
+            f"This is scene {scene.scene_number} of a dynamic visual narrative, titled '{scene.title}'."
+            f"Here is the detailed visual description and art style guidance for this scene: {scene.image_prompt}"
+            f"The narrative for this scene is: '{scene.narrative_text}'"
         )
 
-        print(f"Generating image for scene {scene.scene_nb}: '{scene.title}'")
+        print(f"Generating image for scene {scene.scene_number}: '{scene.title}'")
         print(f"Using prompt:\n{prompt[:300]}...\n") # Print first 300 chars for brevity
 
         try:
@@ -100,7 +99,7 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
                                     extension = ".webp"
 
                                 # 3. Construct the full file path
-                                filename = f"scene_{scene.scene_nb}{extension}"
+                                filename = f"{story_name}_{scene.scene_number}{extension}"
                                 file_path = os.path.join(output_dir, filename)
 
                                 # 4. Save the image
@@ -109,7 +108,7 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
 
                                 # Store information about the saved image
                                 generated_image_data.append({
-                                    'scene_number': scene['scene_number'],
+                                    'scene_number': scene.scene_number,
                                     'file_path': file_path,
                                     'mime_type': mime_type
                                 })
@@ -120,7 +119,7 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
                                 print(f"Error type: {type(image_error)}")
                                 # Save the problematic data for debugging
                                 try:
-                                    debug_filename = f"debug_failed_data_scene_{scene['scene_number']}.bin"
+                                    debug_filename = f"debug_failed_data_scene_{scene.scene_number}.bin"
                                     with open(debug_filename, 'wb') as f:
                                         f.write(part.inline_data.data)
                                     print(f"DEBUG: Saved binary data to {debug_filename}")
@@ -130,17 +129,17 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
                                 traceback.print_exc()
                                 continue
                     else:
-                        print(f"No valid image part found in response for scene {scene['scene_number']}.")
+                        print(f"No valid image part found in response for scene {scene.scene_number}.")
                 else:
-                    print(f"No content or parts found in response for scene {scene['scene_number']}.")
+                    print(f"No content or parts found in response for scene {scene.scene_number}.")
                     if hasattr(response, 'prompt_feedback'):
                         print(f"Prompt feedback: {response.prompt_feedback}")
             else:
-                print(f"No candidates found in response for scene {scene['scene_number']}.")
+                print(f"No candidates found in response for scene {scene.scene_number}.")
                 print(f"Full response: {response}")
 
         except Exception as e:
-            print(f"Error generating or saving image for scene {scene['scene_number']}: {e}")
+            print(f"Error generating or saving image for scene {scene.scene_number}: {e}")
             print(f"Error type: {type(e)}")
             import traceback
             traceback.print_exc()

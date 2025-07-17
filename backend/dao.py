@@ -341,7 +341,7 @@ class SceneDAO:
                     scene = scene(
                         title=scene_data.get("title", ""),
                         narrative_text=scene_data.get("paragraph", ""),
-                        scene_nb=scene_data.get("scene_number", 0),
+                        scene_number=scene_data.get("scene_number", 0),
                         image_prompt=scene_data.get("image_prompt", "")
                     )
                     scene.id = scene_data.get("id")

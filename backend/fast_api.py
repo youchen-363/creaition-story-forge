@@ -30,7 +30,7 @@ except ImportError as e:
 
 # Import AI modules directly
 try:
-    from image_to_text import generate_future_story
+    from image_to_text import generate_narrative_scenes
     from text_to_text import generate_scenes
     from image_to_image import generate_images
     from User_Character import User_Character
@@ -237,7 +237,7 @@ async def generate_story_only(request: StoryRequest):
         
         # Generate story and analysis using AI
         print(f"🎭 Generating story for: {request.title}")
-        analysis, future_story = generate_future_story(
+        analysis, scenes_paragraph, scenes_list = generate_narrative_scenes(
             gemini_client, 
             characters, 
             story.background_story, 
@@ -246,18 +246,32 @@ async def generate_story_only(request: StoryRequest):
         
         character_dao.update_characters_analysis(characters)
         story_dao = dao_factory.get_story_dao()
-        # Update story with future story
-        story.future_story = future_story
-        story_dao.update_story_future_story(story)
+        scene_dao = dao_factory.get_scene_dao()
+        
+        # Save each scene to the database
+        saved_scenes = []
+        for scene in scenes_list:
+            scene_id = scene_dao.create_scene(scene, story.id, scene.scene_number)
+            if scene_id:
+                saved_scenes.append({
+                    "scene_id": scene_id,
+                    "scene_number": scene.scene_number,
+                    "title": scene.title
+                })
+        
+        # Update story status to indicate scenes are generated
+        story_dao.update_story_complete(story)
         
         return {
             "success": True,
             "story_id": story.id,
             "title": request.title,
-            "future_story": future_story,
+            "scenes": saved_scenes,
+            "scenes_paragraph": scenes_paragraph,
             "analysis": analysis,
+            "total_scenes": len(saved_scenes),
             "status": "story_generated",
-            "message": "Story generated successfully! Click the green tick to generate images."
+            "message": "Story and scenes generated successfully! Click the green tick to generate images."
         }
         
     except Exception as e:
@@ -308,6 +322,7 @@ async def generate_story_images(request: GenerateImagesRequest):
         
         future_story = story.future_story
         nb_scenes = story.nb_scenes
+        story_title = story.title
         
         if not future_story:
             return {
@@ -328,7 +343,7 @@ async def generate_story_images(request: GenerateImagesRequest):
         images = []
         try:
             print(f"🎨 Generating images for story: {story.title}")
-            images = generate_images(gemini_client, characters, scenes)
+            images = generate_images(gemini_client, story_title, characters, scenes)
         except Exception as image_error:
             print(f"Image generation failed: {image_error}")
             return {
@@ -342,7 +357,7 @@ async def generate_story_images(request: GenerateImagesRequest):
             scene = scene(
                 title="",  # Add empty title parameter
                 narrative_text=scene,
-                scene_nb=i + 1,
+                scene_number=i + 1,
                 image_prompt=""  # Add empty image_prompt parameter
             )
             scene.image_url = image_path if i < len(images) else ""
@@ -653,7 +668,7 @@ async def get_story(story_id: str):
                     "id": scene.id,
                     "title": scene.title,
                     "narrative_text": scene.narrative_text,
-                    "scene_nb": scene.scene_nb,
+                    "scene_number": scene.scene_number,
                     "image_prompt": scene.image_prompt,
                     "image_url": scene.image_url,
                     "paragraph": scene.paragraph

@@ -6,4 +6,4 @@ class User_Character:
         self.image_name = image_name
         self.name = name
         self.description = description
-        self.analysis = "" # Will be set when generate_future_story() called 
+        self.analysis = "" # Will be set when generate_narrative_scenes() called 

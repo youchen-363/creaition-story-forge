@@ -2,8 +2,9 @@ from google import genai
 import json
 import re
 from User_Character import User_Character
+from Scene import Scene
 
-def generate_future_story(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> tuple[str, str]:
+def generate_narrative_scenes(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> tuple[str, str, list]:
     # Upload multiple files
     uploaded_files = []        
     all_characters_context = []
@@ -12,65 +13,62 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, back
         uploaded_file = client.files.upload(file=char_data.image_url)
         uploaded_files.append(uploaded_file)
     dynamic_character_section = "\n".join(all_characters_context)
-
-    # Determine story length guidance based on nb_scenes
-    story_length_guidance = ""
-    future_story_paragraph_count = ""
-    if nb_scenes <= 2: # 1-2 scenes
-        story_length_guidance = "Aim for a very concise, impactful narrative of **1 paragraph (approx. 100-200 words)**."
-        future_story_paragraph_count = "1 paragraph (approx. 100-200 words)" # For JSON description
-    elif nb_scenes <= 4: # 3-4 scenes
-        story_length_guidance = "Aim for a concise narrative of **2 paragraphs (approx. 200-400 words)**. Focus on essential plot points."
-        future_story_paragraph_count = "2 paragraphs (approx. 200-400 words)" # For JSON description
-    elif nb_scenes <= 6: # 5-6 scenes
-        story_length_guidance = "Aim for a moderately detailed narrative of **3 paragraphs (approx. 400-600 words)**. Develop the plot with a clear progression."
-        future_story_paragraph_count = "3 paragraphs (approx. 400-600 words)" # For JSON description
-    else: # >6 scenes
-        story_length_guidance = "Aim for a comprehensive mini-narrative of **4-6 paragraphs (approx. 600-900 words)**, allowing for richer plot development and character arcs."
-        future_story_paragraph_count = "4-6 paragraphs (approx. 600-900 words)" # For JSON description
-
-
+   
     prompt = f"""
-        You are a visual storytelling AI assistant. Your ultimate goal is to help build the future of personalized illustrated stories by turning user-owned characters and art into dynamic visual narratives. To achieve this, you need to deeply analyze all provided inputs.
+        You are a visual storytelling AI assistant. Your ultimate goal is to help build the future of personalized illustrated stories by turning user-owned characters and art into dynamic visual narratives. To achieve this, you need to deeply analyze all provided inputs and then generate a series of interconnected scenes that form a coherent and personalized story.
+        ---
+        ### Background Story Analysis Task:
+        First, thoroughly analyze the `BACKGROUND_STORY_PLACEHOLDER` provided by the user. Understand its core plot, themes, existing characters (if any), conflicts, and the established world. This analysis will form the foundational context for the personalized scenes.
 
-        **Background Story Analysis Task:**
-        First, thoroughly analyze the `BACKGROUND_STORY_PLACEHOLDER` provided by the user. Understand its core plot, themes, existing characters (if any), conflicts, and the established world. This analysis will form the foundational context for the future story.
-
-        **Character Analysis Task (for each character provided):**
+        ---
+        ### Character Analysis Task (for each character provided):
         For EACH set of character images and descriptions provided, perform the following:
-        1.  Use the character names exactly as provided. Do not replace them with other labels like 'the jester' or 'the officer'. You may add 'the officer' but still remain their name like 'the officer, Matte'. Mention their names consistently throughout the story. 
-        2.  Describe the character's physical appearance, facial expression, clothing, posture, and art style across all provided images for that specific character.
-        3.  Infer the character's possible personality, role (e.g., hero, villain, traveler, inventor), and emotional tone from their images.
-        4.  Mention any symbolic elements or unique art features present in any of the images for that character.
-        5.  If multiple images show the same character in different poses/situations, analyze the consistency and variations of *that character*.
-        6.  Synthesize this information into a structured analysis for each individual character.
+        1.  **Name Consistency:** Use the character names exactly as provided. Do not replace them with other labels like 'the jester' or 'the officer'. You may add descriptive roles (e.g., 'the officer, Matte') but always keep their given name. Mention their names consistently.
+        2.  **Physical & Expressive Description:** Describe the character's physical appearance, facial expression, clothing, and posture across all provided images for that specific character.
+        3.  **Inferred Traits:** Infer the character's possible personality, role (e.g., hero, villain, traveler, inventor), and emotional tone from their images.
+        4.  **Symbolic & Unique Features:** Mention any symbolic elements or unique art features present in any of the images for that character.
+        5.  **Consistency & Variations:** If multiple images show the same character in different poses/situations, analyze the consistency and variations of *that character's visual representation*.
+        6.  **Artistic Style Analysis:** Synthesize the artistic style from the images for each individual character, detailing:
+            * **Overarching Style:** (e.g., 'digital fantasy painting', 'gritty graphic novel')
+            * **Color Palette:** (e.g., 'vibrant saturated greens and browns')
+            * **Line Work:** (e.g., 'dynamic brushstrokes', 'bold lines')
+            * **Shading:** (e.g., 'focus on natural textures', 'high-contrast')
+            * **Texture:** (e.g., 'worn leather, gnarled trees')
+            * **Mood/Atmosphere:** (e.g., 'hopeful exploration')
+            * **Recurring Motifs:** (e.g., 'dappled sunlight, ancient runes')
+        7.  **Synthesized Analysis:** Synthesize all this information into a structured analysis for each individual character.
 
-        **Scenes Generation Task:**
-        Based on the **thorough analysis of the background story** and the **combined analysis** of ALL the characters and their artwork, write a compelling, imaginative **future story** where these characters are the main protagonists/antagonists or key players.
-        -   **Integrate all characters:** Ensure all provided characters coexist and interact in a meaningful way within the narrative.
-        -   **Preserve personality and art style tone:** The story's tone and settings should match or expand upon the inferred personality traits and artistic styles of all characters.
-        -   **Build directly upon background story:** Use the provided BACKGROUND_STORY_PLACEHOLDER as the direct starting point and foundational premise for the narrative. Expand upon its themes, existing conflicts, and established world.
-        -   **Be creative:** Introduce new events, settings, challenges, conflicts, alliances, or rivalries that naturally arise from their combined traits and the existing background.
-        -   **Story Length Requirement:** This story is intended to be broken down into approximately {nb_scenes} visual scenes/scenes. Therefore, {story_length_guidance}
-        
+        ---
+        ### Personalized Scenes Generation Task:
+        Based on the **thorough analysis of the background story** and the **combined and detailed analysis** of ALL the characters and their artwork, write a compelling, imaginative **series of approximately {nb_scenes} interconnected scenes** that form a personalized narrative. Each scene should directly reflect the characters' personalities, visual characteristics, and the overarching artistic style.
 
-        **Background Story:**
+        -   **Integrate all characters:** Ensure all provided characters coexist and interact in a meaningful way within the narrative across the scenes. **Crucially, every single character provided must appear visually in at least one scene throughout the entire set of {nb_scenes} scenes.**
+        -   **Preserve Personality and Art Style Tone:** The story's tone, settings, and events should naturally arise from and consistently match or expand upon the inferred personality traits and the combined artistic styles of all characters. This includes the collective art style elements (color palette, line work, shading, texture, mood/atmosphere) derived from the character analyses.
+        -   **Build Directly Upon Background Story:** Use the provided `BACKGROUND_STORY_PLACEHOLDER` as the direct starting point and foundational premise for the narrative. Expand upon its themes, existing conflicts, and established world within the context of the generated scenes.
+        -   **Be Creative & Dynamic:** Introduce new events, settings, challenges, conflicts, alliances, or rivalries that naturally arise from the characters' combined traits and the existing background story. Each scene should advance the plot.
+        -   **Scene Content Detailing:** For each scene, clearly describe the action, identify which characters are present (by their exact names), detail their individual poses, expressions, and any necessary environmental details. Ensure character interactions, relative positioning, and emotional states are clearly defined, drawing directly from their analyzed personalities and visual traits.
+        -   **No Future Story Text Output:** Do NOT output a single block of "future_story" text. Instead, the narrative should be expressed *through* the generated scenes.
+
+        ---
+        ### Background Story:
         {background_story}
 
-        **Characters for Analysis and Story Generation:**
+        ### Characters for Analysis and Scene Generation:
         # Start dynamic character context here
         {dynamic_character_section}
         # End dynamic character context here
 
-        **Output Format:**
+        ---
+        ### Output Format:
 
         Your final output MUST be a single JSON object structured as follows. Ensure all string values are properly escaped and the JSON is valid.
 
+        ```json
         {{
         "analysis": [
             {{
             "character_name": "[Character 1 Name]",
-            "character_description": "[Character 1 Description]",
+            "character_description": "[Character 1 Description - their role and key personality traits]",
             "image_analysis_summary": "[Your summary of the provided image analysis input for Character 1]",
             "detailed_character_analysis": {{
                 "personality_traits": "[Detailed description of personality and traits based on analysis for Character 1]",
@@ -108,7 +106,21 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, back
             }}
             // ... Add more character analysis objects as needed for each character
         ],
-        "future_story": "[The full future story text generated by the AI, {future_story_paragraph_count}, integrating all characters and building upon the background story]"
+        "scenes": [
+            {{
+            "scene_number": 1,
+            "scene_title": "[Single, one-word title for scene 1, e.g., 'Discovery', 'Pursuit', 'Chaos']",
+            "scene_narrative_text": "[Concise narrative paragraph for scene 1, 3-5 sentences, describing the scene and character actions without speech. Explicitly name primary characters involved, e.g., 'Mathieu, the seasoned detective, arrived at the desolate town square just as dawn broke. A gruesome discovery awaited him: a victim, chillingly displayed, with a single, twisted joker card pinned to their chest. The air hung heavy with a sense of dread and unanswered questions.']",
+            "image_generation_prompt": "[Highly detailed text prompt for AI image generation, describing a *single image* that represents the entire scene. **Example: 'A gritty graphic novel style visual, with stark black, white, and red elements combined with vibrant urban comic book flair. Mathieu, in a dark blue police uniform with a confident yet grim expression beneath his sunglasses, inspects a victim displayed ominously in the center of Muar town square at dawn. A 'Joker' playing card, identical to Dorry's visual motifs, is prominently pinned to the victim's chest with a bloody dagger. The overall mood is ominous, challenging, and resolute. No text or speech bubbles.'**]"
+            }},
+            {{
+            "scene_number": 2,
+            "scene_title": "[Single, one-word title for scene 2]",
+            "scene_narrative_text": "[Concise narrative paragraph for scene 2, 3-5 sentences, describing the scene and character actions without speech. Explicitly name primary characters involved.]",
+            "image_generation_prompt": "[Highly detailed text prompt for AI image generation, describing a *single image* representing scene 2, adhering to character consistency and art style... No text or speech bubbles.]"
+            }}
+            // ... up to {nb_scenes} visual novel scene objects
+        ]
         }}
         """
     # Inject the dynamic context
@@ -120,10 +132,10 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, back
     # Parse and format the response
     return format_response(chars_data, response.text)
 
-def format_response(chars_data: User_Character, raw_response: str) -> tuple[str, str]:
+def format_response(chars_data: User_Character, raw_response: str) -> tuple[str, str, list]:
     """
     Parse the JSON response and format it into readable paragraphs
-    Returns: (analysis, future_story)
+    Returns: (analysis_paragraph, scenes_paragraph, scenes_list)
     """
     try:
         # Clean the response text to remove invalid control characters
@@ -218,28 +230,40 @@ def format_response(chars_data: User_Character, raw_response: str) -> tuple[str,
         
         analysis = "\n".join(formatted_output)
         
-        # Future Story
-        formatted_story = []
+        # Parse Scenes and create Scene objects
+        scenes_data = data.get('scenes', [])
+        scenes_list = []
+        scenes_paragraph_parts = []
         
-        # Header
-        formatted_story.append("=" * 80)
-        formatted_story.append(f"FUTURE STORY")
-        formatted_story.append("=" * 80)
-        formatted_story.append("")
+        # Header for scenes paragraph
+        scenes_paragraph_parts.append("=" * 80)
+        scenes_paragraph_parts.append("GENERATED SCENES")
+        scenes_paragraph_parts.append("=" * 80)
+        scenes_paragraph_parts.append("")
         
-        future_story_content = data.get('future_story', '')
-        if future_story_content:
-            formatted_story.append("🚀 FUTURE STORY:")
-            formatted_story.append("=" * 40)
-            # Clean up the future story text
-            clean_story = clean_story_text(future_story_content)
-            formatted_story.append(clean_story)
-            formatted_story.append("")
+        for scene_data in scenes_data:
+            # Create Scene object
+            scene = Scene(
+                title=scene_data.get("scene_title", ""),
+                narrative_text=scene_data.get("scene_narrative_text", ""),
+                scene_number=scene_data.get("scene_number", 0),
+                image_prompt=scene_data.get("image_generation_prompt", "")
+            )
+            scenes_list.append(scene)
+            
+            # Add to scenes paragraph
+            scenes_paragraph_parts.append(f"🎬 SCENE {scene.scene_number}: {scene.title}")
+            scenes_paragraph_parts.append("-" * 50)
+            scenes_paragraph_parts.append(f"📖 Narrative: {scene.narrative_text}")
+            scenes_paragraph_parts.append("")
+            scenes_paragraph_parts.append(f"🎨 Image Prompt: {scene.image_prompt}")
+            scenes_paragraph_parts.append("")
+            scenes_paragraph_parts.append("=" * 50)
+            scenes_paragraph_parts.append("")
         
-        formatted_story.append("=" * 80)
-        future_story = "\n".join(formatted_story)
+        scenes_paragraph = "\n".join(scenes_paragraph_parts)
         
-        return analysis, future_story
+        return analysis, scenes_paragraph, scenes_list
         
     except json.JSONDecodeError as e:
         print(f"JSON parsing failed: {e}")
@@ -247,7 +271,7 @@ def format_response(chars_data: User_Character, raw_response: str) -> tuple[str,
         return extract_content_manually(raw_response)
     except Exception as e:
         error_msg = f"Error formatting response: {e}\n\nRaw Response:\n{raw_response}"
-        return error_msg, "" 
+        return error_msg, "Error generating scenes", [] 
 
 def clean_story_text(story_text: str) -> str:
     """
@@ -284,13 +308,13 @@ def clean_story_text(story_text: str) -> str:
     
     return '\n\n'.join(formatted_paragraphs)
 
-def extract_content_manually(raw_response: str) -> tuple[str, str]:
+def extract_content_manually(raw_response: str) -> tuple[str, str, list]:
     """
     Manually extract content when JSON parsing fails
-    Returns: (analysis, future_story)
+    Returns: (analysis_paragraph, scenes_paragraph, scenes_list)
     """
     analysis_output = []
-    story_output = []
+    scenes_list = []
     
     # Analysis Header
     analysis_output.append("=" * 80)
@@ -313,28 +337,80 @@ def extract_content_manually(raw_response: str) -> tuple[str, str]:
     analysis_output.append(raw_response[:500] + "..." if len(raw_response) > 500 else raw_response)
     analysis_output.append("=" * 80)
     
-    # Story Header
-    story_output.append("=" * 80)
-    story_output.append("FUTURE STORY")
-    story_output.append("=" * 80)
-    story_output.append("")
+    # Try to extract scenes manually and create Scene objects
+    scene_pattern = r'"scene_number":\s*(\d+).*?"scene_title":\s*"([^"]*)".*?"scene_narrative_text":\s*"([^"]*)".*?"image_generation_prompt":\s*"([^"]*)"'
+    scene_matches = re.findall(scene_pattern, raw_response, re.DOTALL)
     
-    # Try to extract future story
-    story_match = re.search(r'"future_story":\s*"([^"]*)"', raw_response, re.DOTALL)
-    if story_match:
-        story_text = story_match.group(1)
-        clean_story = clean_story_text(story_text)
-        story_output.append("🚀 FUTURE STORY:")
-        story_output.append("=" * 40)
-        story_output.append(clean_story)
-        story_output.append("")
-    else:
-        story_output.append("❌ Could not extract future story from response")
-        story_output.append("")
+    scenes_paragraph_parts = []
+    scenes_paragraph_parts.append("=" * 80)
+    scenes_paragraph_parts.append("GENERATED SCENES (Manual Extraction)")
+    scenes_paragraph_parts.append("=" * 80)
+    scenes_paragraph_parts.append("")
     
-    story_output.append("=" * 80)
+    for match in scene_matches:
+        scene = Scene(
+            title=match[1],
+            narrative_text=match[2],
+            scene_number=int(match[0]),
+            image_prompt=match[3]
+        )
+        scenes_list.append(scene)
+        
+        # Add to scenes paragraph
+        scenes_paragraph_parts.append(f"🎬 SCENE {scene.scene_number}: {scene.title}")
+        scenes_paragraph_parts.append("-" * 50)
+        scenes_paragraph_parts.append(f"📖 Narrative: {scene.narrative_text}")
+        scenes_paragraph_parts.append("")
+        scenes_paragraph_parts.append(f"🎨 Image Prompt: {scene.image_prompt}")
+        scenes_paragraph_parts.append("")
+        scenes_paragraph_parts.append("=" * 50)
+        scenes_paragraph_parts.append("")
     
-    return "\n".join(analysis_output), "\n".join(story_output)
+    if not scenes_list:
+        # If no scenes found, create a default empty scene
+        default_scene = Scene(
+            title="Parse Error",
+            narrative_text="Could not extract scenes from response",
+            scene_number=1,
+            image_prompt="Error extracting scene data"
+        )
+        scenes_list.append(default_scene)
+        
+        scenes_paragraph_parts.append("🎬 SCENE 1: Parse Error")
+        scenes_paragraph_parts.append("-" * 50)
+        scenes_paragraph_parts.append("📖 Narrative: Could not extract scenes from response")
+        scenes_paragraph_parts.append("")
+        scenes_paragraph_parts.append("🎨 Image Prompt: Error extracting scene data")
+        scenes_paragraph_parts.append("")
+    
+    scenes_paragraph = "\n".join(scenes_paragraph_parts)
+    
+    return "\n".join(analysis_output), scenes_paragraph, scenes_list
+
+def generate_future_story(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> tuple[str, str]:
+    """
+    Backward compatibility wrapper function
+    Returns: (analysis, future_story_text)
+    """
+    analysis, scenes_paragraph, scenes_list = generate_narrative_scenes(client, chars_data, background_story, nb_scenes)
+    
+    # Convert scenes list to a formatted future story text
+    future_story_parts = []
+    for scene in scenes_list:
+        scene_text = f"Scene {scene.scene_number}: {scene.title}\n"
+        scene_text += scene.narrative_text
+        future_story_parts.append(scene_text)
+    
+    future_story = "\n\n".join(future_story_parts)
+    return analysis, future_story
+
+def get_scenes_only(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> list:
+    """
+    Helper function to get only the Scene objects
+    Returns: scenes_list (list of Scene objects)
+    """
+    _, _, scenes_list = generate_narrative_scenes(client, chars_data, background_story, nb_scenes)
+    return scenes_list
 
 
     
