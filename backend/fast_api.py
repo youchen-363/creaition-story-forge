@@ -118,8 +118,8 @@ class SimpleStoryRequest(BaseModel):
     nb_chars: int = 2
     story_mode: Optional[str] = None  # Made optional
     user_email: str  # Used to lookup user_id from users table
-    cover_img_url: Optional[str] = None
-    cover_img_name: Optional[str] = None
+    cover_image_url: Optional[str] = None
+    cover_image_name: Optional[str] = None
     background_story: Optional[str] = None  # Added background_story field
 
 class StoryRequest(BaseModel):
@@ -129,16 +129,16 @@ class StoryRequest(BaseModel):
     nb_chars: int = 2
     story_mode: str
     user_id: Optional[str] = None
-    cover_img_url: Optional[str] = None
-    cover_img_name: Optional[str] = None
-    bg_story: str = ""
+    cover_image_url: Optional[str] = None
+    cover_image_name: Optional[str] = None
+    background_story: str = ""
     future_story: str = ""
     characters: List[Dict[str, Any]] = []
 
 class CharacterRequest(BaseModel):
     name: str
     desc: str
-    img_url: Optional[str] = None
+    image_url: Optional[str] = None
 
 class StoryResponse(BaseModel):
     success: bool
@@ -212,47 +212,47 @@ async def generate_story_only(request: StoryRequest):
             nb_scenes=request.nb_scenes,
             nb_chars=request.nb_chars,
             story_mode=request.story_mode,
-            cover_img_url=request.cover_img_url,
-            cover_img_name=request.cover_img_name
+            cover_image_url=request.cover_image_url,
+            cover_image_name=request.cover_image_name
         )
-        story.bg_story = f"A {request.story_mode} story with {request.nb_chars} characters spanning {request.nb_scenes} scenes."
+        story.background_story = f"A {request.story_mode} story with {request.nb_chars} characters spanning {request.nb_scenes} scenes."
         
         # Convert character data to User_Character objects and save to DB
         characters = []
         character_dao = dao_factory.get_character_dao()
         
         for char_data in request.characters:
-            if char_data.get("img_url"):
+            if char_data.get("image_url"):
                 character = User_Character(
                     story.id,  # story_id
-                    char_data["img_url"],  # img_url
-                    char_data.get("img_name", ""),  # img_name  
+                    char_data["image_url"],  # image_url
+                    char_data.get("image_name", ""),  # image_name  
                     char_data["name"], 
                     char_data["description"]
                 )
                 characters.append(character)
                 
                 # Save character to database
-                character_dao.create_character(character, story_id)
+                character_dao.create_character(character, story.id)
         
         # Generate story and analysis using AI
         print(f"🎭 Generating story for: {request.title}")
         analysis, future_story = generate_future_story(
             gemini_client, 
             characters, 
-            story.bg_story, 
+            story.background_story, 
             request.nb_scenes
         )
         
         character_dao.update_characters_analysis(characters)
-        
+        story_dao = dao_factory.get_story_dao()
         # Update story with future story
         story.future_story = future_story
         story_dao.update_story_future_story(story)
         
         return {
             "success": True,
-            "story_id": story_id,
+            "story_id": story.id,
             "title": request.title,
             "future_story": future_story,
             "analysis": analysis,
@@ -329,11 +329,11 @@ async def generate_story_images(request: GenerateImagesRequest):
         try:
             print(f"🎨 Generating images for story: {story.title}")
             images = generate_images(gemini_client, characters, scenes)
-        except Exception as img_error:
-            print(f"Image generation failed: {img_error}")
+        except Exception as image_error:
+            print(f"Image generation failed: {image_error}")
             return {
                 "success": False,
-                "error": f"Image generation failed: {str(img_error)}"
+                "error": f"Image generation failed: {str(image_error)}"
             }
         
         # Step 3: Save scenes (scenes + images) to database
@@ -343,16 +343,16 @@ async def generate_story_images(request: GenerateImagesRequest):
                 title="",  # Add empty title parameter
                 narrative_text=scene,
                 scene_nb=i + 1,
-                img_prompt=""  # Add empty img_prompt parameter
+                image_prompt=""  # Add empty image_prompt parameter
             )
-            scene.img_url = image_path if i < len(images) else ""
+            scene.image_url = image_path if i < len(images) else ""
             scene.paragraph = scene
             
             scene_id = scene_dao.create_scene(scene, request.story_id, i + 1)
             if scene_id:
                 scenes_created.append({
                     "scene_number": i + 1,
-                    "img_url": scene.img_url,
+                    "image_url": scene.image_url,
                     "paragraph": scene.paragraph
                 })
         
@@ -434,8 +434,8 @@ async def generate_story_simple(request: SimpleStoryRequest, background_tasks: B
                     "story_mode": request.story_mode or "",  # Handle None values
                     "nb_scenes": request.nb_scenes,
                     "nb_chars": request.nb_chars,
-                    "cover_img_url": request.cover_img_url,
-                    "cover_img_name": request.cover_img_name,
+                    "cover_image_url": request.cover_image_url,
+                    "cover_image_name": request.cover_image_name,
                     "status": "created",
                     "created_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat()
@@ -510,6 +510,80 @@ async def upload_character_image(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/stories/{story_id}/characters")
+async def save_story_characters(story_id: str, request: dict):
+    """Save/update characters for a specific story"""
+    if not dao_factory:
+        return {
+            "success": False,
+            "message": "Database not available"
+        }
+    
+    try:
+        characters_data = request.get("characters", [])
+        if not characters_data:
+            return {
+                "success": False,
+                "message": "No characters provided"
+            }
+        print(characters_data)
+        character_dao = dao_factory.get_character_dao()
+        saved_characters = []
+        
+        # Get existing characters for this story
+        existing_characters = character_dao.get_story_characters(story_id)
+        existing_char_map = {char.name: char for char in existing_characters}
+        print("existed : ", existing_char_map)
+        for char_data in characters_data:
+            print("json : ", char_data)
+            name = char_data.get("name", "").strip()
+            if not name:
+                continue
+                
+            # Create User_Character object
+            character = User_Character(
+                name=name,
+                description=char_data.get("description", ""),
+                image_url=char_data.get("image_url"),
+                image_name=char_data.get("image_name"),
+                story_id=story_id
+            )
+            print("instance : ", character)
+            # Check if character already exists
+            if name in existing_char_map:
+                # Update existing character
+                existing_char = existing_char_map[name]
+                character.id = existing_char.id
+                success = character_dao.update_character(character)
+                if success:
+                    saved_characters.append({
+                        "id": character.id,
+                        "name": character.name,
+                        "action": "updated"
+                    })
+            else:
+                # Create new character
+                char_id = character_dao.create_character(character, story_id)
+                if char_id:
+                    saved_characters.append({
+                        "id": char_id,
+                        "name": character.name,
+                        "action": "created"
+                    })
+        
+        return {
+            "success": True,
+            "message": f"Successfully processed {len(saved_characters)} characters",
+            "characters": saved_characters
+        }
+        
+    except Exception as e:
+        print(f"Error saving story characters: {e}")
+        return {
+            "success": False,
+            "message": f"Error saving characters: {str(e)}"
+        }
+
 @app.get("/api/stories/{story_id}")
 async def get_story(story_id: str):
     """Get story details using DAO pattern"""
@@ -549,14 +623,15 @@ async def get_story(story_id: str):
                 "nb_scenes": story.nb_scenes,
                 "nb_chars": story.nb_chars,
                 "story_mode": story.story_mode,
-                "cover_img_url": story.cover_img_url,
-                "cover_img_name": story.cover_img_name,
-                "bg_story": story.bg_story,
+                "cover_image_url": story.cover_image_url,
+                "cover_image_name": story.cover_image_name,
+                "background_story": story.background_story,
                 "future_story": story.future_story,
                 "created_at": story.created_at,
                 "updated_at": story.updated_at,
                 "status": "completed"  # Add status field
             }
+            print("story : ", story_dict)
             
             # Convert User_Character objects to dictionaries for JSON serialization
             characters_dict = []
@@ -565,8 +640,8 @@ async def get_story(story_id: str):
                     "id": char.id,
                     "name": char.name,
                     "description": char.description,
-                    "img_path": char.img_url,  # Use img_url for API compatibility
-                    "img_name": char.img_name,  # Include img_name as well
+                    "image_path": char.image_url,  # Use image_url for API compatibility
+                    "image_name": char.image_name,  # Include image_name as well
                     "analysis": getattr(char, "analysis", "")
                 }
                 characters_dict.append(char_dict)
@@ -579,8 +654,8 @@ async def get_story(story_id: str):
                     "title": scene.title,
                     "narrative_text": scene.narrative_text,
                     "scene_nb": scene.scene_nb,
-                    "img_prompt": scene.img_prompt,
-                    "img_url": scene.img_url,
+                    "image_prompt": scene.image_prompt,
+                    "image_url": scene.image_url,
                     "paragraph": scene.paragraph
                 }
                 scenes_dict.append(scene_dict)
@@ -667,14 +742,14 @@ async def update_story(story_id: str, request: SimpleStoryRequest):
         existing_story.nb_scenes = request.nb_scenes
         existing_story.nb_chars = request.nb_chars
         existing_story.story_mode = request.story_mode or ""  # Handle None values
-        existing_story.cover_img_url = request.cover_img_url
-        existing_story.cover_img_name = request.cover_img_name
+        existing_story.cover_image_url = request.cover_image_url
+        existing_story.cover_image_name = request.cover_image_name
         existing_story.updated_at = datetime.utcnow()
         
         # Update background story if provided
         print("background_story : ", request.background_story)
         if request.background_story is not None:
-            existing_story.bg_story = request.background_story
+            existing_story.background_story = request.background_story
         # Update story in database
         updated_story_id = story_dao.update_story(existing_story)
         

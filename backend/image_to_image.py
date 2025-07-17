@@ -17,9 +17,9 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
     os.makedirs(output_dir, exist_ok=True) # Creates 'assets' if it doesn't exist
     uploaded_reference_images = []
     for char_data in chars_data:
-        uploaded_file = client.files.upload(file=f"{char_data.img_url}/{char_data.img_name}")
+        uploaded_file = client.files.upload(file=f"{char_data.image_url}/{char_data.image_name}")
         uploaded_reference_images.append(uploaded_file)
-        print(f"Pre-uploaded reference image for analysis: {char_data.img_url}")
+        print(f"Pre-uploaded reference image for analysis: {char_data.image_url}")
     for i, scene in enumerate(scenes):
         # --- THIS IS THE PROMPT YOU WOULD PASS TO THE IMAGEN API ---
         # It's the `image_generation_prompt` directly.
@@ -33,7 +33,7 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
             f"The scene title is '{scene.title}'. "
             f"Here is the narrative text of this scene '{scene.narrative_text}'"
             f"Here is the detailed visual description and art style guidance for this specific scene: "
-            f"{scene.img_prompt}"
+            f"{scene.image_prompt}"
         )
 
         print(f"Generating image for scene {scene.scene_nb}: '{scene.title}'")
@@ -115,9 +115,9 @@ def generate_images(client: genai.Client, chars_data: list[User_Character], scen
                                 })
                                 break # Successfully processed an image
                                 
-                            except Exception as img_error:
-                                print(f"Error processing image data: {img_error}")
-                                print(f"Error type: {type(img_error)}")
+                            except Exception as image_error:
+                                print(f"Error processing image data: {image_error}")
+                                print(f"Error type: {type(image_error)}")
                                 # Save the problematic data for debugging
                                 try:
                                     debug_filename = f"debug_failed_data_scene_{scene['scene_number']}.bin"

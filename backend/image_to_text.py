@@ -3,13 +3,13 @@ import json
 import re
 from User_Character import User_Character
 
-def generate_future_story(client: genai.Client, chars_data: User_Character, bg_story: str, nb_scenes: int) -> tuple[str, str]:
+def generate_future_story(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> tuple[str, str]:
     # Upload multiple files
     uploaded_files = []        
     all_characters_context = []
     for char_data in chars_data:
         all_characters_context.append(f"Character Name: {char_data.name}\nCharacter Description: {char_data.description}")
-        uploaded_file = client.files.upload(file=char_data.img_path)
+        uploaded_file = client.files.upload(file=char_data.image_url)
         uploaded_files.append(uploaded_file)
     dynamic_character_section = "\n".join(all_characters_context)
 
@@ -45,7 +45,7 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, bg_s
         5.  If multiple images show the same character in different poses/situations, analyze the consistency and variations of *that character*.
         6.  Synthesize this information into a structured analysis for each individual character.
 
-        **Future Story Generation Task:**
+        **Scenes Generation Task:**
         Based on the **thorough analysis of the background story** and the **combined analysis** of ALL the characters and their artwork, write a compelling, imaginative **future story** where these characters are the main protagonists/antagonists or key players.
         -   **Integrate all characters:** Ensure all provided characters coexist and interact in a meaningful way within the narrative.
         -   **Preserve personality and art style tone:** The story's tone and settings should match or expand upon the inferred personality traits and artistic styles of all characters.
@@ -55,7 +55,7 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, bg_s
         
 
         **Background Story:**
-        {bg_story}
+        {background_story}
 
         **Characters for Analysis and Story Generation:**
         # Start dynamic character context here

@@ -29,8 +29,8 @@ class StoryDAO:
                 "nb_scenes": story.nb_scenes,
                 "nb_chars": story.nb_chars,
                 "story_mode": story.story_mode,
-                "cover_img_url": story.cover_img_url,
-                "cover_img_name": story.cover_img_name,
+                "cover_image_url": story.cover_image_url,
+                "cover_image_name": story.cover_image_name,
                 "status": "created",
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
@@ -81,9 +81,9 @@ class StoryDAO:
                 "nb_scenes": story.nb_scenes,
                 "nb_chars": story.nb_chars,
                 "story_mode": story.story_mode,
-                "cover_img_url": story.cover_img_url,
-                "cover_img_name": story.cover_img_name,
-                "background_story": story.bg_story,
+                "cover_image_url": story.cover_image_url,
+                "cover_image_name": story.cover_image_name,
+                "background_story": story.background_story,
                 "updated_at": story.updated_at.isoformat() if story.updated_at else None
             }
             
@@ -111,11 +111,11 @@ class StoryDAO:
                     nb_scenes=story_data.get("nb_scenes", 0),
                     nb_chars=story_data.get("nb_chars", 0),
                     story_mode=story_data.get("story_mode", ""),
-                    cover_img_url=story_data.get("cover_img_url", ""),
-                    cover_img_name=story_data.get("cover_img_name", "")
+                    cover_image_url=story_data.get("cover_image_url", ""),
+                    cover_image_name=story_data.get("cover_image_name", "")
                 )
                 story.id = story_data.get("id")
-                story.bg_story = story_data.get("bg_story", "")
+                story.background_story = story_data.get("background_story", "")
                 story.future_story = story_data.get("future_story", "")
                 story.created_at = story_data.get("created_at")
                 story.updated_at = story_data.get("updated_at")
@@ -143,11 +143,11 @@ class StoryDAO:
                         nb_scenes=story_data.get("nb_scenes", 0),
                         nb_chars=story_data.get("nb_chars", 0),
                         story_mode=story_data.get("story_mode", ""),
-                        cover_img_url=story_data.get("cover_img_url", ""),
-                        cover_img_name=story_data.get("cover_img_name", "")
+                        cover_image_url=story_data.get("cover_image_url", ""),
+                        cover_image_name=story_data.get("cover_image_name", "")
                     )
                     story.id = story_data.get("id")
-                    story.bg_story = story_data.get("bg_story", "")
+                    story.background_story = story_data.get("background_story", "")
                     story.future_story = story_data.get("future_story", "")
                     stories.append(story)
             
@@ -173,11 +173,11 @@ class StoryDAO:
                         nb_scenes=story_data.get("nb_scenes", 0),
                         nb_chars=story_data.get("nb_chars", 0),
                         story_mode=story_data.get("story_mode", ""),
-                        cover_img_url=story_data.get("cover_img_url", ""),
-                        cover_img_name=story_data.get("cover_img_name", "")
+                        cover_image_url=story_data.get("cover_image_url", ""),
+                        cover_image_name=story_data.get("cover_image_name", "")
                     )
                     story.id = story_data.get("id")
-                    story.bg_story = story_data.get("bg_story", "")
+                    story.background_story = story_data.get("background_story", "")
                     story.future_story = story_data.get("future_story", "")
                     stories.append(story)
             
@@ -203,13 +203,13 @@ class CharacterDAO:
                 "story_id": story_id_to_use,
                 "name": character.name,
                 "description": character.description,
-                "img_path": character.img_url,  # Store img_url in img_path field
-                "img_name": character.img_name,  # Store img_name in new field
+                "image_url": character.image_url,  # Store image_url in image_path field
+                "image_name": character.image_name,  # Store image_name in new field
                 "analysis": character.analysis,
                 "created_at": datetime.utcnow().isoformat()
             }
             
-            result = self.db.table("user_characters").insert(char_data).execute()
+            result = self.db.table("user_character").insert(char_data).execute()
             if result.data:
                 return char_id
             return None
@@ -224,13 +224,13 @@ class CharacterDAO:
                 "story_id": character.story_id,  # Include story_id in updates
                 "name": character.name,
                 "description": character.description,
-                "img_path": character.img_url,  # Store img_url in img_path field
-                "img_name": character.img_name,  # Store img_name in new field
+                "image_path": character.image_url,  # Store image_url in image_path field
+                "image_name": character.image_name,  # Store image_name in new field
                 "analysis": character.analysis,
                 "updated_at": datetime.utcnow().isoformat()
             }
             
-            result = self.db.table("user_characters").update(update_data).eq("id", character.id).execute()
+            result = self.db.table("user_character").update(update_data).eq("id", character.id).execute()
             return bool(result.data)
         except Exception as e:
             print(f"Error updating character: {e}")
@@ -254,7 +254,7 @@ class CharacterDAO:
                 "analysis": character.analysis,
                 "updated_at": datetime.utcnow().isoformat()
             }
-            result = self.db.table("user_characters").update(update_data).eq("id", character.id).execute()
+            result = self.db.table("user_character").update(update_data).eq("id", character.id).execute()
             return bool(result.data)
         except Exception as e:
             print(f"Error updating character analysis: {e}")
@@ -271,7 +271,7 @@ class CharacterDAO:
     def get_story_characters(self, story_id: str) -> List[User_Character]:
         """Get all characters for a story"""
         try:
-            result = self.db.table("user_characters")\
+            result = self.db.table("user_character")\
                 .select("*")\
                 .eq("story_id", story_id)\
                 .execute()
@@ -281,8 +281,8 @@ class CharacterDAO:
                 for char_data in result.data:
                     character = User_Character(
                         char_data.get("story_id", ""),  # story_id
-                        char_data.get("img_path", ""),  # img_url
-                        char_data.get("img_name", ""),  # img_name
+                        char_data.get("image_path", ""),  # image_url
+                        char_data.get("image_name", ""),  # image_name
                         char_data.get("name", ""),      # name
                         char_data.get("description", "")  # description
                     )
@@ -312,7 +312,7 @@ class SceneDAO:
                 "id": scene_id,
                 "story_id": story_id,
                 "scene_number": scene_number,
-                "img_url": scene.img_url,
+                "image_url": scene.image_url,
                 "paragraph": scene.paragraph,
                 "created_at": datetime.utcnow().isoformat()
             }
@@ -342,10 +342,10 @@ class SceneDAO:
                         title=scene_data.get("title", ""),
                         narrative_text=scene_data.get("paragraph", ""),
                         scene_nb=scene_data.get("scene_number", 0),
-                        img_prompt=scene_data.get("img_prompt", "")
+                        image_prompt=scene_data.get("image_prompt", "")
                     )
                     scene.id = scene_data.get("id")
-                    scene.img_url = scene_data.get("img_url", "")
+                    scene.image_url = scene_data.get("image_url", "")
                     scene.paragraph = scene_data.get("paragraph", "")
                     scenes.append(scene)
             

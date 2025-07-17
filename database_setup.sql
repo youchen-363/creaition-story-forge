@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Drop all existing tables in correct order (reverse of dependencies)
 DROP TABLE IF EXISTS public.scenes CASCADE;
-DROP TABLE IF EXISTS public.user_characters CASCADE;
+DROP TABLE IF EXISTS public.user_character CASCADE;
 DROP TABLE IF EXISTS public.stories CASCADE;
 DROP TABLE IF EXISTS public.users CASCADE;
 
@@ -31,21 +31,21 @@ CREATE TABLE public.stories (
     nb_scenes INTEGER NOT NULL DEFAULT 1,
     nb_chars INTEGER NOT NULL DEFAULT 1,
     story_mode VARCHAR(100) NOT NULL DEFAULT 'adventure',
-    cover_img_url TEXT,
-    cover_img_name VARCHAR(255),
+    cover_image_url TEXT,
+    cover_image_name VARCHAR(255),
     future_story TEXT,
     status VARCHAR(50) DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create user_characters table (renamed from characters to match class name)
-CREATE TABLE public.user_characters (
+-- Create user_character table (renamed from characters to match class name)
+CREATE TABLE public.user_character (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     story_id UUID NOT NULL REFERENCES public.stories(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    img_path TEXT,
+    image_path TEXT,
     analysis TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -58,8 +58,8 @@ CREATE TABLE public.scenes (
     scene_number INTEGER NOT NULL,
     title VARCHAR(255),
     narrative_text TEXT,
-    img_prompt TEXT,
-    img_url TEXT,
+    image_prompt TEXT,
+    image_url TEXT,
     paragraph TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -70,7 +70,7 @@ CREATE TABLE public.scenes (
 CREATE INDEX idx_users_email ON public.users(email);
 CREATE INDEX idx_stories_user_id ON public.stories(user_id);
 CREATE INDEX idx_stories_created_at ON public.stories(created_at);
-CREATE INDEX idx_user_characters_story_id ON public.user_characters(story_id);
+CREATE INDEX idx_user_character_story_id ON public.user_character(story_id);
 CREATE INDEX idx_scenes_story_id ON public.scenes(story_id);
 CREATE INDEX idx_scenes_scene_number ON public.scenes(story_id, scene_number);
 
@@ -103,8 +103,8 @@ CREATE TRIGGER update_stories_updated_at
     BEFORE UPDATE ON public.stories 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_characters_updated_at 
-    BEFORE UPDATE ON public.user_characters 
+CREATE TRIGGER update_user_character_updated_at 
+    BEFORE UPDATE ON public.user_character 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_scenes_updated_at 
@@ -115,7 +115,7 @@ CREATE TRIGGER update_scenes_updated_at
 -- This ensures no authentication issues during development
 ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stories DISABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_characters DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_character DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.scenes DISABLE ROW LEVEL SECURITY;
 
 -- Insert a test user for development (optional)
@@ -126,7 +126,7 @@ ON CONFLICT (email) DO NOTHING;
 -- Grant necessary permissions (adjust as needed for your setup)
 GRANT ALL ON public.users TO authenticated, anon;
 GRANT ALL ON public.stories TO authenticated, anon;
-GRANT ALL ON public.user_characters TO authenticated, anon;
+GRANT ALL ON public.user_character TO authenticated, anon;
 GRANT ALL ON public.scenes TO authenticated, anon;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
 
@@ -134,7 +134,7 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated, anon;
 DO $$
 BEGIN
     RAISE NOTICE 'Database setup completed successfully!';
-    RAISE NOTICE 'Tables created: users, stories, user_characters, scenes';
+    RAISE NOTICE 'Tables created: users, stories, user_character, scenes';
     RAISE NOTICE 'RLS disabled for development';
     RAISE NOTICE 'Test user created: test@example.com with 999 credits';
 END $$;

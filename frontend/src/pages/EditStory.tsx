@@ -19,8 +19,8 @@ interface StoryData {
   nb_scenes: number;
   nb_chars: number;
   story_mode: string;
-  cover_img_url?: string;
-  cover_img_name?: string;
+  cover_image_url?: string;
+  cover_image_name?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -98,7 +98,7 @@ const EditStory = () => {
         setNumscenes(story.nb_scenes || 4);
         setNumCharacters(story.nb_chars || 2);
         setStoryMode(story.story_mode || "");
-        setUploadedImageUrl(story.cover_img_url || "");
+        setUploadedImageUrl(story.cover_image_url || "");
       } else {
         setError("Failed to load story data");
       }
@@ -170,8 +170,8 @@ const EditStory = () => {
         nb_chars: numCharacters,
         story_mode: storyMode || null, // Allow empty story mode
         user_email: user?.email || "test@example.com",
-        cover_img_url: uploadedImageUrl || null,
-        cover_img_name: storyImage?.name || null
+        cover_image_url: uploadedImageUrl || null,
+        cover_image_name: storyImage?.name || null
       };
 
       console.log('Updating story data:', storyData);

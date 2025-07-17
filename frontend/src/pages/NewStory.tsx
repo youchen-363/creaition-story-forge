@@ -66,8 +66,8 @@ const NewStory = () => {
         nb_chars: numCharacters,
         story_mode: storyMode || null, // Allow empty story mode
         user_email: user?.email || "test@example.com", // Send email instead of user_id
-        cover_img_url: uploadedImageUrl || null,
-        cover_img_name: storyImage?.name || null
+        cover_image_url: uploadedImageUrl || null,
+        cover_image_name: storyImage?.name || null
       };
 
       console.log('Sending story data:', storyData);

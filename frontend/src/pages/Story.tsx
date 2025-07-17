@@ -16,8 +16,8 @@ interface StoryData {
   nb_scenes: number;
   nb_chars: number;
   story_mode: string;
-  cover_img_url?: string;
-  cover_img_name?: string;
+  cover_image_url?: string;
+  cover_image_name?: string;
   background_story: string;
   future_story: string;
   analysis: string;
@@ -86,6 +86,7 @@ const Story = () => {
       const result = await response.json();
       
       if (result.success && result.story) {
+        console.log(result.story)
         setStoryData(result.story);
         
         // Extract cover image URL from background story
@@ -210,10 +211,18 @@ const Story = () => {
         alert("Please write a background story before generating the narrative.");
         return;
       }
-      // Check if at least one character has both a name and an image
-      const hasValidCharacters = characters.some(char => char.name.trim() !== "" && char.imageUrl);
-      if (!hasValidCharacters) {
-        alert("Please add at least one character with both a name and an image before generating the story.");
+      
+      // Check if ALL characters have complete information (name, description, and image)
+      const expectedCharacterCount = storyData?.nb_chars || 2;
+      const validCharacters = characters.filter(char => 
+        char.name.trim() !== "" && 
+        char.description.trim() !== "" && 
+        char.imageUrl
+      );
+      
+      if (validCharacters.length < expectedCharacterCount) {
+        const missingCount = expectedCharacterCount - validCharacters.length;
+        alert(`Please provide complete information (name, description, and image) for all ${expectedCharacterCount} characters. You are missing ${missingCount} character(s).`);
         return;
       }
 
@@ -226,13 +235,14 @@ const Story = () => {
         nb_chars: storyData?.nb_chars || 2,
         story_mode: storyData?.story_mode || "adventure",
         user_email: user?.email || "test@example.com", // Use actual user email
-        cover_img_url: storyData?.cover_img_url || null,
-        cover_img_name: storyData?.cover_img_name || null,
+        cover_image_url: storyData?.cover_image_url || null,
+        cover_image_name: storyData?.cover_image_name || null,
         background_story: backgroundStory // Add background story to save to DB
       };
+      
+      // First, update the story with background story and basic info
       console.log(storyId)
       console.log(JSON.stringify(storyUpdateData))
-      // Update the story with background story 
       const updateResponse = await fetch(`http://localhost:8002/api/stories/${storyId}`, {
         method: 'PUT',
         headers: {
@@ -242,11 +252,47 @@ const Story = () => {
       });
       console.log(updateResponse)
 
-      // update characters 
-
-
       if (!updateResponse.ok) {
         throw new Error("Failed to save story data");
+      }
+
+      const updateResult = await updateResponse.json();
+      if (!updateResult.success) {
+        throw new Error(updateResult.message || "Failed to update story");
+      }
+
+      // Save/update characters for this story
+      const charactersToSave = characters.filter(char => char.name.trim() !== "");
+      
+      if (charactersToSave.length > 0) {
+        const charactersData = {
+          story_id: storyId,
+          characters: charactersToSave.map(char => ({
+            name: char.name,
+            description: char.description,
+            img_url: char.imageUrl || null,
+            img_name: char.image ? char.image.name : null
+          }))
+        };
+
+        const updateCharsResponse = await fetch(`http://localhost:8002/api/stories/${storyId}/characters`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(charactersData),
+        });
+
+        if (!updateCharsResponse.ok) {
+          console.warn("Failed to save characters, but continuing with story generation");
+        } else {
+          const charsResult = await updateCharsResponse.json();
+          if (charsResult.success) {
+            console.log("Characters saved successfully:", charsResult);
+          } else {
+            console.warn("Characters save returned error:", charsResult.message);
+          }
+        }
       }
 
       // Now call the AI generation API
@@ -256,11 +302,11 @@ const Story = () => {
         nb_chars: storyData?.nb_chars || 2,
         story_mode: storyData?.story_mode || "adventure",
         user_id: storyId, // Use story ID as user ID for now
-        cover_img_url: storyData?.cover_img_url || null,
-        cover_img_name: storyData?.cover_img_name || null,
-        bg_story: backgroundStory,
+        cover_image_url: storyData?.cover_image_url || null,
+        cover_image_name: storyData?.cover_image_name || null,
+        background_story: backgroundStory,
         future_story: "",
-        characters: characters.filter(char => char.name.trim() !== "").map(char => ({
+        characters: validCharacters.map(char => ({
           name: char.name,
           desc: char.description,
           img_url: char.imageUrl || null,  // Send the image URL as img_url
