@@ -5,39 +5,41 @@ from io import BytesIO
 import base64
 import os
 from dotenv import load_dotenv
+from Scene import Scene 
+from User_Character import User_Character
 
 #load_dotenv()
 #client = genai.Client(api_key=os.getenv("GEMINI_PAID_API_KEY"))
 
-def generate_images(client: genai.Client, chars_data: list, pages: list):
+def generate_images(client: genai.Client, chars_data: list[User_Character], scenes: list[Scene]):
     generated_image_data = []
     output_dir = "output"
     os.makedirs(output_dir, exist_ok=True) # Creates 'assets' if it doesn't exist
     uploaded_reference_images = []
     for char_data in chars_data:
-        uploaded_file = client.files.upload(file=char_data.img_path)
+        uploaded_file = client.files.upload(file=f"{char_data.img_url}/{char_data.img_name}")
         uploaded_reference_images.append(uploaded_file)
-        print(f"Pre-uploaded reference image for analysis: {char_data.img_path}")
-    for i, page in enumerate(pages):
+        print(f"Pre-uploaded reference image for analysis: {char_data.img_url}")
+    for i, scene in enumerate(scenes):
         # --- THIS IS THE PROMPT YOU WOULD PASS TO THE IMAGEN API ---
         # It's the `image_generation_prompt` directly.
         # You can add a prefix if you want, but the detailed prompt is what matters.
-        # imagen_prompt = page['image_generation_prompt']
+        # imagen_prompt = scene['image_generation_prompt']
         
         # You could also add more general framing like this, but the core is the detailed prompt:
         prompt = (
-            f"Without any inappropriate or NSFW content, create a comic page image."
-            f"This is page {page['page_number']} of a visual narrative."
-            f"The page title is '{page['page_title']}'. "
-            f"Here is the detailed visual description and art style guidance for this specific page: "
-            f"{page['image_generation_prompt']}"
+            f"Without any inappropriate or NSFW content, create an image."
+            f"This is scene {scene.scene_nb} of a visual narrative novel."
+            f"The scene title is '{scene.title}'. "
+            f"Here is the narrative text of this scene '{scene.narrative_text}'"
+            f"Here is the detailed visual description and art style guidance for this specific scene: "
+            f"{scene.img_prompt}"
         )
 
-        print(f"Generating image for Page {page['page_number']}: '{page['page_title']}'")
+        print(f"Generating image for scene {scene.scene_nb}: '{scene.title}'")
         print(f"Using prompt:\n{prompt[:300]}...\n") # Print first 300 chars for brevity
 
         try:
-            #image = Image.open(chars_data[i].img_path)
             response = client.models.generate_content(
                 model="gemini-2.0-flash-preview-image-generation",
                 contents=[prompt, uploaded_reference_images],
@@ -98,7 +100,7 @@ def generate_images(client: genai.Client, chars_data: list, pages: list):
                                     extension = ".webp"
 
                                 # 3. Construct the full file path
-                                filename = f"comic_page_{page['page_number']}{extension}"
+                                filename = f"scene_{scene.scene_nb}{extension}"
                                 file_path = os.path.join(output_dir, filename)
 
                                 # 4. Save the image
@@ -107,7 +109,7 @@ def generate_images(client: genai.Client, chars_data: list, pages: list):
 
                                 # Store information about the saved image
                                 generated_image_data.append({
-                                    'page_number': page['page_number'],
+                                    'scene_number': scene['scene_number'],
                                     'file_path': file_path,
                                     'mime_type': mime_type
                                 })
@@ -118,7 +120,7 @@ def generate_images(client: genai.Client, chars_data: list, pages: list):
                                 print(f"Error type: {type(img_error)}")
                                 # Save the problematic data for debugging
                                 try:
-                                    debug_filename = f"debug_failed_data_page_{page['page_number']}.bin"
+                                    debug_filename = f"debug_failed_data_scene_{scene['scene_number']}.bin"
                                     with open(debug_filename, 'wb') as f:
                                         f.write(part.inline_data.data)
                                     print(f"DEBUG: Saved binary data to {debug_filename}")
@@ -128,17 +130,17 @@ def generate_images(client: genai.Client, chars_data: list, pages: list):
                                 traceback.print_exc()
                                 continue
                     else:
-                        print(f"No valid image part found in response for Page {page['page_number']}.")
+                        print(f"No valid image part found in response for scene {scene['scene_number']}.")
                 else:
-                    print(f"No content or parts found in response for Page {page['page_number']}.")
+                    print(f"No content or parts found in response for scene {scene['scene_number']}.")
                     if hasattr(response, 'prompt_feedback'):
                         print(f"Prompt feedback: {response.prompt_feedback}")
             else:
-                print(f"No candidates found in response for Page {page['page_number']}.")
+                print(f"No candidates found in response for scene {scene['scene_number']}.")
                 print(f"Full response: {response}")
 
         except Exception as e:
-            print(f"Error generating or saving image for Page {page['page_number']}: {e}")
+            print(f"Error generating or saving image for scene {scene['scene_number']}: {e}")
             print(f"Error type: {type(e)}")
             import traceback
             traceback.print_exc()
@@ -146,5 +148,5 @@ def generate_images(client: genai.Client, chars_data: list, pages: list):
     return generated_image_data
 
 # Example usage:
-# generated_images = generate_comic_images(example_pages_list, client)
+# generated_images = generate_comic_images(example_scenes_list, client)
 # print(f"\nGenerated {len(generated_images)} images.")

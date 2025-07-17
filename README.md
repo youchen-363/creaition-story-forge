@@ -1,22 +1,69 @@
-# Welcome to your Lovable project
+# CreAItion Story Forge
 
-## Project info
+A full-stack application for AI-powered story creation and comic generation.
 
-**URL**: https://lovable.dev/projects/5e622e7a-846d-4d0e-9d05-eee30e4d0f85
+## Project Structure
 
-## How can I edit this code?
+```
+project-root/
+├── backend/                 ← Python FastAPI backend
+│   ├── .env                ← Backend secrets (OpenAI key, DB URL)
+│   ├── requirements.txt    ← Python dependencies
+│   ├── Dockerfile         ← Backend container config
+│   ├── fast_api.py        ← Main FastAPI application
+│   ├── dao.py             ← Database access layer
+│   └── ...                ← Other backend modules
+├── frontend/               ← React/TypeScript frontend
+│   ├── .env               ← Frontend config (VITE_SUPABASE_URL)
+│   ├── package.json       ← Node.js dependencies
+│   ├── Dockerfile         ← Frontend container config
+│   ├── src/               ← React components and hooks
+│   └── ...                ← Other frontend files
+├── docker-compose.yml     ← Orchestrates both services + n8n
+├── database_setup.sql     ← PostgreSQL schema for Supabase
+└── README.md              ← This file
+```
 
-There are several ways of editing your application.
+## Quick Start
 
-**Use Lovable**
+### Development (Local)
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/5e622e7a-846d-4d0e-9d05-eee30e4d0f85) and start prompting.
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd creaition-story-forge
+   ```
 
-Changes made via Lovable will be committed automatically to this repo.
+2. **Setup Backend**
+   ```bash
+   cd backend
+   
+   # Create virtual environment (recommended)
+   python -m venv venv
+   venv\Scripts\activate  # On Windows PowerShell
+   
+   # Install dependencies
+   pip install -r requirements.txt
+   
+   # Run backend
+   python fast_api.py
+   ```
 
-**Use your preferred IDE**
+3. **Setup Frontend**
+   ```bash
+   cd frontend
+   
+   # Install dependencies
+   npm install
+   
+   # Run frontend
+   npm run dev
+   ```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+4. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8002
+   - API Docs: http://localhost:8002/docs
 
 The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
 
@@ -44,7 +91,7 @@ npm run dev
 
 **Use GitHub Codespaces**
 
-- Navigate to the main page of your repository.
+- Navigate to the main scene of your repository.
 - Click on the "Code" button (green button) near the top right.
 - Select the "Codespaces" tab.
 - Click on "New codespace" to launch a new Codespace environment.

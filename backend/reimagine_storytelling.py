@@ -4,15 +4,15 @@ from text_to_text import generate_scenes
 from image_to_image import generate_images
 import os
 from dotenv import load_dotenv
-from character import User_Character
+from User_Character import User_Character
 import datetime
 
 load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 client = genai.Client(api_key=api_key)
 
-char1 = User_Character("assets/jocker.jpeg", "Dorry", "He is a serial killer. He is born in Muar, Johor, Malaysia. He likes to kill people and be criminal. He enjoys the moment when a guy shouts and begs him to let him survive. He feels that he is the god in this way.")
-char2 = User_Character("assets/police.jpg", "Mathieu", "He is a police, keep the safety of Muar. He wants to catch Dorry but Dorry always escape from him. He won't endure the crimes.")
+char1 = User_Character("demo_story_1", "assets/jocker.jpeg", "jocker.jpeg", "Dorry", "He is a serial killer. He is born in Muar, Johor, Malaysia. He likes to kill people and be criminal. He enjoys the moment when a guy shouts and begs him to let him survive. He feels that he is the god in this way.")
+char2 = User_Character("demo_story_1", "assets/police.jpg", "police.jpg", "Mathieu", "He is a police, keep the safety of Muar. He wants to catch Dorry but Dorry always escape from him. He won't endure the crimes.")
 chars = [char1, char2]
 
 bg_story = """
@@ -35,7 +35,7 @@ print(scenes)
 
 img_paths = []
 for char_data in chars:
-    img_paths.append(char_data.img_path)
+    img_paths.append(char_data.img_path + "/" + char_data.img_name)
 
 start = datetime.datetime.now()
 images = generate_images(client, chars, scenes)

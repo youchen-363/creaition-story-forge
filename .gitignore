@@ -11,6 +11,11 @@ node_modules
 dist
 dist-ssr
 *.local
+.vite
+
+*/__pycache__
+backend/assets
+backend/output
 
 # Editor directories and files
 .vscode/*
@@ -23,3 +28,13 @@ dist-ssr
 *.sln
 *.sw?
 *.env
+SETUP.md
+QUICK_FIX.md
+nginx.conf
+start.sh
+start.bat
+stop.bat
+dev-start.bat
+docker-compose.yml
+*.sql
+!database_setup.sql

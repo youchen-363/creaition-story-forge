@@ -1,14 +1,14 @@
 from google import genai
 import json
 import re
-from character import User_Character
+from User_Character import User_Character
 
 def generate_future_story(client: genai.Client, chars_data: User_Character, bg_story: str, nb_scenes: int) -> tuple[str, str]:
     # Upload multiple files
     uploaded_files = []        
     all_characters_context = []
     for char_data in chars_data:
-        all_characters_context.append(f"Character Name: {char_data.name}\nCharacter Description: {char_data.desc}")
+        all_characters_context.append(f"Character Name: {char_data.name}\nCharacter Description: {char_data.description}")
         uploaded_file = client.files.upload(file=char_data.img_path)
         uploaded_files.append(uploaded_file)
     dynamic_character_section = "\n".join(all_characters_context)
@@ -51,7 +51,7 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, bg_s
         -   **Preserve personality and art style tone:** The story's tone and settings should match or expand upon the inferred personality traits and artistic styles of all characters.
         -   **Build directly upon background story:** Use the provided BACKGROUND_STORY_PLACEHOLDER as the direct starting point and foundational premise for the narrative. Expand upon its themes, existing conflicts, and established world.
         -   **Be creative:** Introduce new events, settings, challenges, conflicts, alliances, or rivalries that naturally arise from their combined traits and the existing background.
-        -   **Story Length Requirement:** This story is intended to be broken down into approximately {nb_scenes} visual scenes/pages. Therefore, {story_length_guidance}
+        -   **Story Length Requirement:** This story is intended to be broken down into approximately {nb_scenes} visual scenes/scenes. Therefore, {story_length_guidance}
         
 
         **Background Story:**
@@ -118,9 +118,9 @@ def generate_future_story(client: genai.Client, chars_data: User_Character, bg_s
     )
     
     # Parse and format the response
-    return format_response(response.text)
+    return format_response(chars_data, response.text)
 
-def format_response(raw_response: str) -> tuple[str, str]:
+def format_response(chars_data: User_Character, raw_response: str) -> tuple[str, str]:
     """
     Parse the JSON response and format it into readable paragraphs
     Returns: (analysis, future_story)
@@ -168,47 +168,53 @@ def format_response(raw_response: str) -> tuple[str, str]:
             characters = analysis_data
         
         for i, character in enumerate(characters):
+            """
             if i > 0:
                 formatted_output.append("\n" + "=" * 60)
                 formatted_output.append("")
-            
-            formatted_output.append(f"📖 CHARACTER {i+1}: {character.get('character_name', 'Unknown')}")
-            formatted_output.append(f"📝 DESCRIPTION: {character.get('character_description', 'No description provided')}")
-            formatted_output.append("")
+            """
+            char_analysis = []
+            char_analysis.append(f"📖 CHARACTER {i+1}: {character.get('character_name', 'Unknown')}")
+            char_analysis.append(f"📝 DESCRIPTION: {character.get('character_description', 'No description provided')}")
+            char_analysis.append("")
             
             # Image Analysis Summary
             if character.get('image_analysis_summary'):
-                formatted_output.append("🔍 IMAGE ANALYSIS SUMMARY:")
-                formatted_output.append("-" * 40)
-                formatted_output.append(character['image_analysis_summary'])
-                formatted_output.append("")
+                char_analysis.append("🔍 IMAGE ANALYSIS SUMMARY:")
+                char_analysis.append("-" * 40)
+                char_analysis.append(character['image_analysis_summary'])
+                char_analysis.append("")
             
             # Detailed Character Analysis
             detailed_analysis = character.get('detailed_character_analysis', {})
             if detailed_analysis:
-                formatted_output.append("👤 DETAILED CHARACTER ANALYSIS:")
-                formatted_output.append("-" * 40)
+                char_analysis.append("👤 DETAILED CHARACTER ANALYSIS:")
+                char_analysis.append("-" * 40)
                 
                 if detailed_analysis.get('personality_traits'):
-                    formatted_output.append(f"Personality Traits: {detailed_analysis['personality_traits']}")
-                    formatted_output.append("")
+                    char_analysis.append(f"Personality Traits: {detailed_analysis['personality_traits']}")
+                    char_analysis.append("")
                 
                 if detailed_analysis.get('visual_characteristics'):
-                    formatted_output.append(f"Visual Characteristics: {detailed_analysis['visual_characteristics']}")
-                    formatted_output.append("")
+                    char_analysis.append(f"Visual Characteristics: {detailed_analysis['visual_characteristics']}")
+                    char_analysis.append("")
                 
                 # Artistic Style Analysis
                 style_analysis = detailed_analysis.get('artistic_style_analysis', {})
                 if style_analysis:
-                    formatted_output.append("🎨 ARTISTIC STYLE ANALYSIS:")
+                    char_analysis.append("🎨 ARTISTIC STYLE ANALYSIS:")
                     for key, value in style_analysis.items():
                         if value and value.strip():
-                            formatted_output.append(f"  • {key.replace('_', ' ').title()}: {value}")
-                    formatted_output.append("")
+                            char_analysis.append(f"  • {key.replace('_', ' ').title()}: {value}")
+                    char_analysis.append("")
                 
                 if detailed_analysis.get('potential_narrative_themes'):
-                    formatted_output.append(f"📚 Narrative Themes: {detailed_analysis['potential_narrative_themes']}")
-                    formatted_output.append("")
+                    char_analysis.append(f"📚 Narrative Themes: {detailed_analysis['potential_narrative_themes']}")
+                    char_analysis.append("")
+            
+            analysis = "\n".join(char_analysis)
+            formatted_output.append(analysis)
+            chars_data[i].analysis = analysis
         
         analysis = "\n".join(formatted_output)
         
