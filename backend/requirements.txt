@@ -1,4 +1,4 @@
-# CreAItion Backend Requirements - Simplified
+# CreAItion Backend Requirements - Complete
 
 # FastAPI and Web Server
 fastapi>=0.104.1
@@ -14,4 +14,7 @@ supabase>=2.0.2
 # AI/ML Dependencies
 google-genai>=0.3.2
 Pillow>=10.1.0
-supabase
+
+# Additional Python standard library modules used
+# (These are built-in, but listing for completeness)
+# uuid, traceback, typing, datetime, pathlib, zipfile, io, tempfile, os, time, json, re
