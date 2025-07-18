@@ -1,15 +1,13 @@
 from google import genai 
 from image_to_text import generate_narrative_scenes
-from text_to_text import generate_scenes
 from image_to_image import generate_images
 import os
 from dotenv import load_dotenv
 from User_Character import User_Character
 import datetime
+from config import GEMINI_API_KEY
 
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key)
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 char1 = User_Character("demo_story_1", "assets/joker.jpeg", "jocker.jpeg", "Dorry", "Dorry is a mysterious jester with a disturbing, split black and white face. He loves riddles and chaos, always appearing where he's least expected, leaving behind a chilling laugh. He's very theatrical.")
 char2 = User_Character("demo_story_1", "assets/police.jpg", "police.jpg", "Matte", "Matte is a cop.")

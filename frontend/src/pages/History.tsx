@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import Header from "@/components/Header";
 import { ChevronLeft, ChevronRight, BookOpen, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_URL } from '../lib/config';
 
 interface Story {
   id: string;
@@ -35,7 +36,7 @@ const History = () => {
         return;
       }
 
-      const response = await fetch(`http://localhost:8002/api/user/stories?user_email=${encodeURIComponent(user.email)}`);
+      const response = await fetch(`${API_URL}user/stories?user_email=${encodeURIComponent(user.email)}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch stories: ${response.status}`);
@@ -154,11 +155,13 @@ const History = () => {
                           <div className="aspect-[3/4] bg-gradient-to-br from-purple-100 to-blue-100 rounded-t-lg flex items-center justify-center relative overflow-hidden">
                             {/* <BookOpen className="w-16 h-16 text-gray-400" /> */}
                             {/* <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" /> */}
-                            <img
-                              src={story.cover_image_url || "http://localhost:8002/assets/police.jpg"}
-                              alt={story.title}
-                              className="w-full h-full object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300"
-                            />
+                            {story.cover_image_url && (
+                              <img
+                                src={story.cover_image_url}
+                                alt={story.title}
+                                className="w-full h-full object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300"
+                              />
+                            )}
                             <div className="absolute top-2 right-2">
                               <span className={`text-xs px-2 py-1 rounded-full bg-white/80 ${getStatusColor(story.status)}`}>
                                 {getStatusText(story.status)}

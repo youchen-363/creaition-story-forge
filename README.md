@@ -7,7 +7,7 @@ CreAItion is an AI-powered storytelling platform that enables users to transform
 This project is built with:
 - Backend: Python (FastAPI)
 - Frontend: Typescript (ReactJS + Vite), TailwindCSS
-- Database: Supabase
+- Database & Cloud Storage: Supabase
 - AI Integration: mllm gemini-2.5-flash & gemini-2.0-flash-preview-image-generation
 
 
@@ -17,7 +17,6 @@ This project is built with:
 project-root/
 ├── backend/               ← Python FastAPI backend
 │   ├── .env               ← Backend secrets (Gemini & Supabase API key)
-|   ├── assets             ← Local storage
 │   ├── requirements.txt   ← Python dependencies
 │   ├── fast_api.py        ← Main FastAPI application
 │   ├── dao.py             ← Database access layer

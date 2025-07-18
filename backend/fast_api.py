@@ -3,77 +3,61 @@ Simple FastAPI Backend for CreAItion
 Direct integration with AI modules without MCP/n8n complexity
 """
 
-import os
 import uuid
-import json
 import traceback
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
+import zipfile
+import io
+import requests
+import tempfile
+import os
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from dotenv import load_dotenv
+from config import SUPABASE_URL, SUPABASE_ANON_KEY
 
 # Database imports (will work once supabase is set up)
 try:
-    from supabase import create_client, Client
-    from dao import DAOFactory, StoryDAO, CharacterDAO, SceneDAO, UserDAO
+    from config import supabase, ASSETS_FOLDER
+    from supabase_storage import upload_to_supabase_storage
+    from supabase import Client
+    from dao import DAOFactory
     from User import User
     SUPABASE_AVAILABLE = True
 except ImportError as e:
     SUPABASE_AVAILABLE = False
     print(f"Warning: Supabase not available: {e}")
 
+from image_to_text import generate_narrative_scenes
+from image_to_image import generate_images_with_updates
+from User_Character import User_Character
+from Story import Story
+from config import gemini_client
+
 # Import AI modules directly
 try:
-    from image_to_text import generate_narrative_scenes
-    from text_to_text import generate_scenes
-    from image_to_image import generate_images_with_updates
-    from User_Character import User_Character
-    from Story import Story
-    from Scene import Scene
     from google import genai
     AI_MODULES_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import AI modules: {e}")
     AI_MODULES_AVAILABLE = False
 
-load_dotenv()
-
-# Initialize Supabase client and DAO factory
-supabase: Optional[Client] = None
+# Initialize DAO factory with imported supabase client
 dao_factory: Optional[DAOFactory] = None
 
 if SUPABASE_AVAILABLE:
     try:
-        supabase_url = os.getenv("SUPABASE_URL", "")
-        supabase_key = os.getenv("SUPABASE_ANON_KEY", "")
-        
-        if supabase_url and supabase_key:
-            supabase = create_client(supabase_url, supabase_key)
+        if SUPABASE_URL and SUPABASE_ANON_KEY and supabase:
             dao_factory = DAOFactory(supabase)
             print("✅ Supabase client and DAO factory initialized successfully")
         else:
-            print("Warning: Supabase credentials not found")
+            print("Warning: Supabase credentials not found or supabase client not available")
     except Exception as e:
         print(f"Warning: Could not initialize Supabase: {e}")
-
-# Initialize Gemini client
-gemini_client = None
-if AI_MODULES_AVAILABLE:
-    api_key = os.getenv("GEMINI_API_KEY")
-    if api_key:
-        try:
-            gemini_client = genai.Client(api_key=api_key)
-            print("✅ Gemini client initialized successfully")
-        except Exception as e:
-            print(f"Warning: Could not initialize Gemini client: {e}")
-    else:
-        print("Warning: GEMINI_API_KEY not found")
 
 # FastAPI app
 app = FastAPI(
@@ -90,16 +74,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Create assets directory and mount static files
-assets_dir = Path("assets")
-assets_dir.mkdir(exist_ok=True)
-app.mount("/assets", StaticFiles(directory="assets"), name="assets")
-
-# Create output directory and mount static files for generated images
-output_dir = Path("output")
-output_dir.mkdir(exist_ok=True)
-app.mount("/output", StaticFiles(directory="output"), name="output")
 
 def get_all_story_titles():
     """Get all story titles from database"""
@@ -181,6 +155,9 @@ async def root():
         "endpoints": [
             "/api/stories/generate",
             "/api/characters/upload",
+            "/api/stories/{story_id}/cover/upload",
+            "/api/stories/{story_id}/characters/upload", 
+            "/api/stories/{story_id}/characters",
             "/api/stories/{story_id}",
             "/api/stories/generate-story",
             "/api/stories/generate-images",
@@ -285,8 +262,8 @@ async def generate_story_only(request: StoryRequest):
             if scene_id:
                 saved_scenes.append({
                     "scene_id": scene_id,
-                    "scene_number": scene.scene_number,
-                    "title": scene.title
+                    "title": scene.title,
+                    "scene_number": scene.scene_number
                 })
         
         # Update story status to indicate scenes are generated
@@ -315,10 +292,6 @@ async def generate_story_only(request: StoryRequest):
 
 @app.post("/api/stories/generate-images")
 async def generate_story_images(request: GenerateImagesRequest):
-    """
-    Generate images for an existing story and save everything to database
-    This is called when user clicks the green tick to approve the story
-    """
     try:
         # Check if AI modules are available
         if not AI_MODULES_AVAILABLE or not gemini_client:
@@ -350,8 +323,6 @@ async def generate_story_images(request: GenerateImagesRequest):
         # Get characters for this story
         characters = character_dao.get_story_characters(request.story_id)
         
-        future_story = story.future_story
-        nb_scenes = story.nb_scenes
         story_title = story.title
         scenes_paragraph = story.scenes_paragraph
         
@@ -361,29 +332,22 @@ async def generate_story_images(request: GenerateImagesRequest):
                 "error": "Story must be generated first before creating images"
             }
         
-        # Step 1: Generate detailed scenes
-        print(f"🎬 Generating scenes for story: {story.title}")
-        scenes = generate_scenes(
-            gemini_client,
-            characters,
-            nb_scenes,  
-            future_story
-        )
+        # Get scenes from database (scenes were created in generate_story_only)
+        print(f"🎬 Getting scenes from database for story: {story.title}")
+        scenes = scene_dao.get_story_scenes(request.story_id)
         
-        # Step 1.5: Save scenes to database immediately (without image URLs)
-        print(f"💾 Saving {len(scenes)} scenes to database...")
-        scene_dao.delete_story_scenes(request.story_id)
-        for scene_obj in scenes:
-            scene_obj.image_url = ""  # Initially empty
-            scene_obj.paragraph = scene_obj.narrative_text
-            scene_id = scene_dao.create_scene(scene_obj, request.story_id, scene_obj.scene_number)
-            print(f"   ✅ Saved scene {scene_obj.scene_number}: {scene_id}")
+        if not scenes:
+            return {
+                "success": False,
+                "error": "No scenes found for this story. Please generate the story first."
+            }
         
-        # Step 2: Generate images with real-time database updates
-        images = []
+        print(f"💾 Found {len(scenes)} scenes in database")
+        
+        # Generate images with real-time database updates
         try:
             print(f"🎨 Generating images for story: {story.title}")
-            images = generate_images_with_updates(gemini_client, story_title, characters, scenes, scene_dao, request.story_id)
+            generate_images_with_updates(gemini_client, story_title, characters, scenes, scene_dao, request.story_id)
         except Exception as image_error:
             print(f"Image generation failed: {image_error}")
             return {
@@ -391,7 +355,7 @@ async def generate_story_images(request: GenerateImagesRequest):
                 "error": f"Image generation failed: {str(image_error)}"
             }
         
-        # Step 3: Mark story as completed and return results
+        # Mark story as completed and return results
         story_dao.update_story_complete(story)
         
         # Get updated scenes from database to return
@@ -400,8 +364,8 @@ async def generate_story_images(request: GenerateImagesRequest):
         for scene in updated_scenes:
             scenes_created.append({
                 "scene_number": scene.scene_number,
-                "image_url": scene.image_url,
-                "paragraph": scene.paragraph
+                "title": scene.title,
+                "image_url": scene.image_url                
             })
         
         return {
@@ -523,36 +487,110 @@ async def upload_character_image(
     name: str = None,
     description: str = None
 ):
-    """Upload character image"""
+    """Upload character image to Supabase storage"""
     try:
-        # Save uploaded file
+        # Read file content
+        content = await file.read()
+        
+        # Generate unique filename
         file_extension = Path(file.filename).suffix
         unique_filename = f"character_{uuid.uuid4()}{file_extension}"
-        file_path = assets_dir / unique_filename
         
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-        
-        # Create the image URL
-        image_url = f"/assets/{unique_filename}"
+        # Upload to Supabase storage
+        image_url = upload_to_supabase_storage(content, unique_filename, ASSETS_FOLDER)
         
         character_data = {
             "name": name or "Unknown Character",
             "description": description or "",
-            "image_url": str(file_path),
             "image_url": image_url
         }
         
         return {
             "success": True,
             "character": character_data,
-            "file_path": str(file_path),
             "image_url": image_url,
-            "message": "Character image uploaded successfully"
+            "message": "Character image uploaded successfully to Supabase storage"
         }
             
     except Exception as e:
+        print(f"Error uploading character image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/stories/{story_id}/cover/upload")
+async def upload_story_cover(
+    story_id: str,
+    file: UploadFile = File(...)
+):
+    """Upload story cover image to Supabase storage"""
+    try:
+        print(f"📸 Cover upload received - story_id: '{story_id}', filename: '{file.filename}'")
+        
+        # Read file content
+        content = await file.read()
+        
+        # Generate filename based on story ID and original file extension
+        file_extension = Path(file.filename).suffix.lower()
+        # Ensure we have a valid extension
+        if not file_extension:
+            file_extension = '.jpg'  # Default to .jpg if no extension
+        
+        filename = f"story_{story_id}{file_extension}"
+        
+        print(f"📁 Generated filename: '{filename}'")
+        
+        # Upload to Supabase storage
+        image_url = upload_to_supabase_storage(content, filename, ASSETS_FOLDER)
+        
+        print(f"✅ Upload successful - URL: {image_url}")
+        
+        return {
+            "success": True,
+            "image_url": image_url,
+            "filename": filename,
+            "message": "Story cover uploaded successfully to Supabase storage"
+        }
+            
+    except Exception as e:
+        print(f"Error uploading story cover: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/stories/{story_id}/characters/upload")
+async def upload_story_character(
+    story_id: str,
+    file: UploadFile = File(...),
+    character_index: int = 0,
+    name: str = None,
+    description: str = None
+):
+    """Upload character image for a specific story to Supabase storage"""
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Generate filename based on character index
+        file_extension = Path(file.filename).suffix
+        filename = f"char_{character_index}{file_extension}"
+        
+        # Upload to Supabase storage
+        image_url = upload_to_supabase_storage(content, filename, ASSETS_FOLDER)
+        
+        character_data = {
+            "name": name or f"Character {character_index + 1}",
+            "description": description or "",
+            "image_url": image_url,
+            "filename": filename
+        }
+        
+        return {
+            "success": True,
+            "character": character_data,
+            "image_url": image_url,
+            "filename": filename,
+            "message": "Character image uploaded successfully to Supabase storage"
+        }
+            
+    except Exception as e:
+        print(f"Error uploading character image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/stories/{story_id}/characters")
@@ -1038,6 +1076,150 @@ async def update_user_credits(email: str, request: UpdateCreditsRequest):
         }
 
 
+@app.get("/api/stories/{story_id}/download")
+async def download_story_package(story_id: str):
+    """Download a complete story package as a ZIP file containing images and story text"""
+    try:
+        if not dao_factory:
+            raise HTTPException(status_code=500, detail="Database not available")
+        
+        # Get story data
+        story_dao = dao_factory.get_story_dao()
+        story_data = story_dao.get_story(story_id)
+        
+        if not story_data:
+            raise HTTPException(status_code=404, detail="Story not found")
+        
+        # Create a temporary directory for organizing files
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            
+            # Create story text file
+            story_title = story_data.title or 'Untitled Story'
+            safe_title = "".join(c for c in story_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+            
+            story_content = f"""STORY TITLE: {story_title}\n
+
+                BACKGROUND STORY:
+                {story_data.background_story or 'No background story provided.'}
+
+                STORY NARRATIVE:
+                {story_data.scenes_paragraph or 'No narrative available.'}
+
+                STORY DETAILS:
+                - Number of Scenes: {story_data.nb_scenes or 'Unknown'}
+                - Number of Characters: {story_data.nb_chars or 'Unknown'}
+                - Story Mode: {story_data.story_mode or 'Unknown'}
+                - Created: {story_data.created_at or 'Unknown'}
+            """
+            
+            # Write story text file
+            story_file_path = temp_path / f"{safe_title}_story.txt"
+            with open(story_file_path, 'w', encoding='utf-8') as f:
+                f.write(story_content)
+            
+            # Download scene images
+            scene_dao = dao_factory.get_scene_dao()
+            scenes = scene_dao.get_story_scenes(story_id)
+            
+            downloaded_files = [story_file_path]
+            
+            if scenes:
+                # Create images directory
+                images_dir = temp_path / "images"
+                images_dir.mkdir(exist_ok=True)
+                
+                for scene in scenes:
+                    if scene.image_url:
+                        try:
+                            # Download the image
+                            response = requests.get(scene.image_url, timeout=30)
+                            response.raise_for_status()
+                            
+                            # Determine file extension from URL or content type
+                            scene_number = scene.scene_number or 'unknown'
+                            scene_title = scene.title or f'Scene_{scene_number}'
+                            safe_scene_title = "".join(c for c in scene_title if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                            
+                            # Try to get extension from URL
+                            url_path = scene.image_url.split('?')[0]  # Remove query parameters
+                            if '.' in url_path:
+                                extension = url_path.split('.')[-1].lower()
+                                if extension not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                                    extension = 'jpg'  # Default fallback
+                            else:
+                                extension = 'jpg'  # Default fallback
+                            
+                            image_filename = f"scene_{scene_number:02d}_{safe_scene_title}.{extension}"
+                            image_path = images_dir / image_filename
+                            
+                            # Save the image
+                            with open(image_path, 'wb') as img_file:
+                                img_file.write(response.content)
+                            
+                            downloaded_files.append(image_path)
+                            print(f"✅ Downloaded scene image: {image_filename}")
+                            
+                        except Exception as e:
+                            print(f"⚠️ Failed to download image for scene {scene.scene_number or 'unknown'}: {e}")
+                            continue
+            
+            # Download cover image if available
+            if story_data.cover_image_url:
+                try:
+                    response = requests.get(story_data.cover_image_url, timeout=30)
+                    response.raise_for_status()
+                    
+                    # Get extension for cover image
+                    url_path = story_data.cover_image_url.split('?')[0]
+                    if '.' in url_path:
+                        extension = url_path.split('.')[-1].lower()
+                        if extension not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                            extension = 'jpg'
+                    else:
+                        extension = 'jpg'
+                    
+                    cover_filename = f"cover_image.{extension}"
+                    cover_path = temp_path / cover_filename
+                    
+                    with open(cover_path, 'wb') as cover_file:
+                        cover_file.write(response.content)
+                    
+                    downloaded_files.append(cover_path)
+                    print(f"✅ Downloaded cover image: {cover_filename}")
+                    
+                except Exception as e:
+                    print(f"⚠️ Failed to download cover image: {e}")
+            
+            # Create ZIP file in memory
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                for file_path in downloaded_files:
+                    # Get relative path within temp directory
+                    arcname = file_path.relative_to(temp_path)
+                    zip_file.write(file_path, arcname)
+            
+            zip_buffer.seek(0)
+            
+            # Create filename for ZIP
+            zip_filename = f"{safe_title}_story_package.zip"
+            
+            # Return ZIP file as streaming response
+            return StreamingResponse(
+                io.BytesIO(zip_buffer.read()),
+                media_type="application/zip",
+                headers={"Content-Disposition": f"attachment; filename={zip_filename}"}
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error creating story package: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to create story package: {str(e)}")
+
+
 if __name__ == "__main__":
     import uvicorn
     print("🚀 Starting CreAItion DAO API server...")
@@ -1048,6 +1230,7 @@ if __name__ == "__main__":
     print("   - POST /api/stories/generate-images (AI image generation)")
     print("   - POST /api/characters/upload")
     print("   - GET /api/stories/{story_id}")
+    print("   - GET /api/stories/{story_id}/download (download story package)")
     print("   - PUT /api/stories/{story_id} (update story)")
     print("   - GET /health")
     uvicorn.run("fast_api:app", host="0.0.0.0", port=8002, reload=True)

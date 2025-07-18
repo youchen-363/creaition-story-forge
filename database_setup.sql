@@ -33,7 +33,9 @@ CREATE TABLE public.stories (
     story_mode VARCHAR(100) NOT NULL DEFAULT 'adventure',
     cover_image_url TEXT,
     cover_image_name VARCHAR(255),
+    background_story TEXT,
     future_story TEXT,
+    scenes_paragraph TEXT,
     status VARCHAR(50) DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

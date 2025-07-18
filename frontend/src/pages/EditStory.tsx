@@ -12,6 +12,7 @@ import { Loader2, Save, ArrowLeft, Upload, X, AlertCircle, Check, ChevronsUpDown
 import { cn } from "@/lib/utils";
 import Header from "@/components/Header";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_URL } from "../lib/config";
 
 interface StoryData {
   id: string;
@@ -38,6 +39,7 @@ const EditStory = () => {
   const [storyMode, setStoryMode] = useState("");
   const [storyImage, setStoryImage] = useState<File | null>(null);
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string>("");
+  const [imageCacheTimestamp, setImageCacheTimestamp] = useState<number>(Date.now());
   
   // UI state
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ const EditStory = () => {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`http://localhost:8002/api/stories/${id}`);
+      const response = await fetch(`${API_URL}stories/${id}`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -99,6 +101,7 @@ const EditStory = () => {
         setNumCharacters(story.nb_chars || 2);
         setStoryMode(story.story_mode || "");
         setUploadedImageUrl(story.cover_image_url || "");
+        setImageCacheTimestamp(Date.now()); // Set initial cache timestamp
       } else {
         setError("Failed to load story data");
       }
@@ -120,10 +123,8 @@ const EditStory = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('name', 'Story Cover');
-      formData.append('description', 'Cover image for the story');
 
-      const response = await fetch('http://localhost:8002/api/characters/upload', {
+      const response = await fetch(`${API_URL}stories/${storyId}/cover/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -132,7 +133,8 @@ const EditStory = () => {
 
       if (result.success) {
         setStoryImage(file);
-        setUploadedImageUrl(`http://localhost:8002${result.image_url}`);
+        setUploadedImageUrl(result.image_url);
+        setImageCacheTimestamp(Date.now()); // Refresh cache timestamp
         console.log('Image uploaded successfully:', result);
       } else {
         setUploadError(result.error || 'Upload failed');
@@ -149,6 +151,7 @@ const EditStory = () => {
     setStoryImage(null);
     setUploadedImageUrl("");
     setUploadError("");
+    setImageCacheTimestamp(Date.now()); // Refresh cache timestamp
   };
 
   const handleSave = async () => {
@@ -177,7 +180,7 @@ const EditStory = () => {
       console.log('Updating story data:', storyData);
 
       // Call update API endpoint
-      const response = await fetch(`http://localhost:8002/api/stories/${storyId}`, {
+      const response = await fetch(`${API_URL}stories/${storyId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -419,19 +422,21 @@ const EditStory = () => {
                           <div className="space-y-3 h-full flex flex-col">
                             <div className="flex-1 rounded-lg overflow-hidden border-2 border-gray-200">
                               <img
-                                src={uploadedImageUrl}
+                                src={`${uploadedImageUrl}?t=${imageCacheTimestamp}`}
                                 alt="Uploaded story cover"
                                 className="w-full h-full object-contain bg-gray-50"
                               />
                             </div>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={removeImage}
-                            >
-                              Remove
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={removeImage}
+                              >
+                                Remove
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           <div className="space-y-3 flex flex-col items-center justify-center h-full">

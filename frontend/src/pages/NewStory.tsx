@@ -4,21 +4,20 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import Header from "@/components/Header";
 import { Upload, Plus, Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { API_URL } from '../lib/config';
 
 const NewStory = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [title, setTitle] = useState("");
-  const [numscenes, setNumscenes] = useState(5);
+  const [numscenes, setNumscenes] = useState(4);
   const [numCharacters, setNumCharacters] = useState(2);
   const [storyMode, setStoryMode] = useState("");
   const [storyImage, setStoryImage] = useState<File | null>(null);
@@ -27,7 +26,6 @@ const NewStory = () => {
   const [uploadError, setUploadError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string>("");
-
   const [open, setOpen] = useState(false);
 
   // Predefined story modes
@@ -59,21 +57,21 @@ const NewStory = () => {
     }
 
     try {
-      // Prepare story data for backend
+      // First, create the story record without cover image
       const storyData = {
         title,
         nb_scenes: numscenes,
         nb_chars: numCharacters,
         story_mode: storyMode || null, // Allow empty story mode
         user_email: user?.email || "test@example.com", // Send email instead of user_id
-        cover_image_url: uploadedImageUrl || null,
-        cover_image_name: storyImage?.name || null
+        cover_image_url: null, // Will be updated after image upload
+        cover_image_name: null
       };
 
-      console.log('Sending story data:', storyData);
+      console.log('Creating story:', storyData);
 
-      // Always use the simple endpoint to just create the story record
-      const response = await fetch('http://localhost:8002/api/stories/generate', {
+      // Create the story record first
+      const response = await fetch(`${API_URL}stories/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -85,6 +83,56 @@ const NewStory = () => {
       
       if (result.success && result.story_id) {
         console.log("Story created successfully:", result);
+        
+        // Now upload the cover image with the proper story ID if there's an image
+        if (storyImage) {
+          try {
+            console.log("Uploading cover image with story ID:", result.story_id);
+            const formData = new FormData();
+            formData.append('file', storyImage);
+            
+            const uploadResponse = await fetch(`${API_URL}stories/${result.story_id}/cover/upload`, {
+              method: 'POST',
+              body: formData,
+            });
+
+            const uploadResult = await uploadResponse.json();
+          
+            if (uploadResult.success) {
+              console.log("Cover image uploaded successfully:", uploadResult.filename);
+              // Update the story with the new cover image URL
+              const updateStoryData = {
+                title,
+                nb_scenes: numscenes,
+                nb_chars: numCharacters,
+                story_mode: storyMode || null,
+                user_email: user?.email || "test@example.com",
+                cover_image_url: uploadResult.image_url,
+                cover_image_name: uploadResult.filename
+              };
+              
+              // Update the story record with the new image URL
+              const updateResponse = await fetch(`${API_URL}stories/${result.story_id}`, {
+                method: 'PUT',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateStoryData),
+              });
+              
+              if (!updateResponse.ok) {
+                console.warn("Failed to update story with new cover image URL");
+              } else {
+                console.log("Story updated with cover image URL");
+              }
+            } else {
+              console.warn("Failed to upload cover image:", uploadResult.error);
+            }
+          } catch (uploadError) {
+            console.warn("Error uploading cover image:", uploadError);
+            // Don't fail the story creation for this
+          }
+        }
         
         // Always redirect to Story page for further processing
         navigate(`/story/${result.story_id}`);
@@ -116,28 +164,14 @@ const NewStory = () => {
     setUploadError("");
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('name', 'Story Cover');
-      formData.append('description', 'Cover image for the story');
-
-      const response = await fetch('http://localhost:8002/api/characters/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        setStoryImage(file);
-        setUploadedImageUrl(`http://localhost:8002${result.image_url}`);
-        console.log('Image uploaded successfully:', result);
-      } else {
-        setUploadError(result.error || 'Upload failed');
-      }
+      // Just store the file locally and create a preview URL
+      setStoryImage(file);
+      const previewUrl = URL.createObjectURL(file);
+      setUploadedImageUrl(previewUrl);
+      console.log('Image selected for upload:', file.name);
     } catch (error) {
-      console.error('Upload error:', error);
-      setUploadError('Failed to upload image');
+      console.error('Error handling image file:', error);
+      setUploadError('Failed to process image');
     } finally {
       setIsUploading(false);
     }
@@ -313,13 +347,22 @@ const NewStory = () => {
                                 src={uploadedImageUrl}
                                 alt="Uploaded story cover"
                                 className="w-full h-full object-contain bg-gray-50"
+                                onLoad={() => console.log(`🖼️ Image loaded: ${uploadedImageUrl}`)}
+                                onError={(e) => console.error(`❌ Image failed to load: ${uploadedImageUrl}`, e)}
                               />
+                            </div>
+                            <div className="text-xs text-gray-500 text-center">
+                              {storyImage?.name || 'Selected image'}
                             </div>
                             <Button
                               type="button"
                               variant="outline"
                               size="sm"
                               onClick={() => {
+                                // Clean up the preview URL if it's a blob URL
+                                if (uploadedImageUrl.startsWith('blob:')) {
+                                  URL.revokeObjectURL(uploadedImageUrl);
+                                }
                                 setStoryImage(null);
                                 setUploadedImageUrl("");
                                 setUploadError("");

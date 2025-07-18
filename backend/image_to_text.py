@@ -1,35 +1,30 @@
 from google import genai
 import json
 import re
-import os
-from pathlib import Path
 from User_Character import User_Character
 from Scene import Scene
+from supabase_storage import save_temp_image_for_upload
 
 def generate_narrative_scenes(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> tuple[str, str, list]:
     # Upload multiple files
     uploaded_files = []        
     all_characters_context = []
+    temp_files = []  # Track temporary files for cleanup
+    
     for char_data in chars_data:
         all_characters_context.append(f"Character Name: {char_data.name}\nCharacter Description: {char_data.description}")
         
-        # Convert URL to local file path
-        # URL format: http://localhost:8002/assets/character_xxx.jpeg
-        # Local path: assets/character_xxx.jpeg
-        if char_data.image_url.startswith('http://'):
-            # Extract filename from URL
-            filename = char_data.image_url.split('/assets/')[-1]
-            local_file_path = Path("assets") / filename
-        else:
-            # Assume it's already a local path
-            local_file_path = Path(char_data.image_url)
-        
-        uploaded_file = client.files.upload(file=str(local_file_path))
+        # All character images are now stored in Supabase storage
+        # Download to temporary file for Gemini upload
+        temp_file_path = save_temp_image_for_upload(char_data.image_url)
+        temp_files.append(temp_file_path)
+        uploaded_file = client.files.upload(file=temp_file_path)
         uploaded_files.append(uploaded_file)
+    
     dynamic_character_section = "\n".join(all_characters_context)
-   
+    
     prompt = f"""
-        You are a visual storytelling AI assistant. Your ultimate goal is to help build the future of personalized illustrated stories by turning user-owned characters and art into dynamic visual narratives. To achieve this, you need to deeply analyze all provided inputs and then generate a series of interconnected scenes that form a coherent and personalized story.
+        You are a highly skilled **Visual Narrative Creative Director and Prompt Engineer** for an AI image generation system. Your ultimate goal is to help build visual narratives by turning user-owned characters and art and the personalized illustrated stories into dynamic visual narratives. To achieve this, you need to deeply analyze all provided inputs and then generate a series of interconnected scenes that form a coherent and personalized story.
         ---
         ### Background Story Analysis Task:
         First, thoroughly analyze the `BACKGROUND_STORY_PLACEHOLDER` provided by the user. Understand its core plot, themes, existing characters (if any), conflicts, and the established world. This analysis will form the foundational context for the personalized scenes.
@@ -125,13 +120,13 @@ def generate_narrative_scenes(client: genai.Client, chars_data: User_Character, 
             "scene_number": 1,
             "scene_title": "[Single, one-word title for scene 1, e.g., 'Discovery', 'Pursuit', 'Chaos']",
             "scene_narrative_text": "[Concise narrative paragraph for scene 1, 3-5 sentences, describing the scene and character actions without speech. Explicitly name primary characters involved, e.g., 'Mathieu, the seasoned detective, arrived at the desolate town square just as dawn broke. A gruesome discovery awaited him: a victim, chillingly displayed, with a single, twisted joker card pinned to their chest. The air hung heavy with a sense of dread and unanswered questions.']",
-            "image_generation_prompt": "[Highly detailed text prompt for AI image generation, describing a *single image* that represents the entire scene. **Example: 'A gritty graphic novel style visual, with stark black, white, and red elements combined with vibrant urban comic book flair. Mathieu, in a dark blue police uniform with a confident yet grim expression beneath his sunglasses, inspects a victim displayed ominously in the center of Muar town square at dawn. A 'Joker' playing card, identical to Dorry's visual motifs, is prominently pinned to the victim's chest with a bloody dagger. The overall mood is ominous, challenging, and resolute. No text or speech bubbles.'**]"
+            "image_generation_prompt": "Generate a high-quality visual narrative image for this scene. CRITICAL: The image MUST have a perfectly square (1:1) aspect ratio with equal width and height. The image must contain no inappropriate/NSFW content, text, speech bubbles, or captions. Depict the complete storytelling moment, including all relevant characters, their interactions, expressions, poses, and the environment as described: [Highly detailed text prompt for AI image generation, describing a *single image* that represents the entire scene. **Example: 'A gritty graphic novel style visual, with stark black, white, and red elements combined with vibrant urban comic book flair. Mathieu, in a dark blue police uniform with a confident yet grim expression beneath his sunglasses, inspects a victim displayed ominously in the center of Muar town square at dawn. A 'Joker' playing card, identical to Dorry's visual motifs, is prominently pinned to the victim's chest with a bloody dagger. The overall mood is ominous, challenging, and resolute.'**] ASPECT RATIO: Generate square image only - width equals height."
             }},
             {{
             "scene_number": 2,
             "scene_title": "[Single, one-word title for scene 2]",
             "scene_narrative_text": "[Concise narrative paragraph for scene 2, 3-5 sentences, describing the scene and character actions without speech. Explicitly name primary characters involved.]",
-            "image_generation_prompt": "[Highly detailed text prompt for AI image generation, describing a *single image* representing scene 2, adhering to character consistency and art style... No text or speech bubbles.]"
+            "image_generation_prompt": "Generate a high-quality visual narrative image for this scene. CRITICAL: The image MUST have a perfectly square (1:1) aspect ratio with equal width and height. The image must contain no inappropriate/NSFW content, text, speech bubbles, or captions. Depict the complete storytelling moment, including all relevant characters, their interactions, expressions, poses, and the environment as described: [Highly detailed text prompt for AI image generation, describing a *single image* representing scene 2, adhering to character consistency and art style... **No text or speech bubbles.**] ASPECT RATIO: Generate square image only - width equals height."
             }}
             // ... up to {nb_scenes} visual novel scene objects
         ]
@@ -250,17 +245,29 @@ def format_response(chars_data: User_Character, raw_response: str) -> tuple[str,
         scenes_paragraph_parts = []
         
         for scene_data in scenes_data:
-            # Create Scene object
+            print(f"DEBUG: Processing scene_data: {scene_data}")
+            # Create Scene object with additional null safety
+            title = scene_data.get("scene_title", "") if scene_data else ""
+            narrative_text = scene_data.get("scene_narrative_text", "") if scene_data else ""
+            scene_number = scene_data.get("scene_number", 0) if scene_data else 0
+            image_prompt = scene_data.get("image_generation_prompt", "") if scene_data else ""
+            
+            # Ensure values are not None
+            title = title if title is not None else ""
+            narrative_text = narrative_text if narrative_text is not None else ""
+            image_prompt = image_prompt if image_prompt is not None else ""
+            
             scene = Scene(
-                title=scene_data.get("scene_title", ""),
-                narrative_text=scene_data.get("scene_narrative_text", ""),
-                scene_number=scene_data.get("scene_number", 0),
-                image_prompt=scene_data.get("image_generation_prompt", "")
+                title=title,
+                narrative_text=narrative_text,
+                scene_number=scene_number,
+                image_prompt=image_prompt
             )
+            print(f"DEBUG: Created scene {scene_number}: title='{title}', narrative_length={len(narrative_text)}, prompt_length={len(image_prompt)}")
             scenes_list.append(scene)
             
             # Add to scenes paragraph
-            scenes_paragraph_parts.append(f"🎬 SCENE {scene.scene_number}: {scene.title}")
+            scenes_paragraph_parts.append(f"🎬 SCENE {scene.scene_number}: {scene.title}. ")
             scenes_paragraph_parts.append("")
             scenes_paragraph_parts.append(f"{scene.narrative_text}")
             scenes_paragraph_parts.append("")

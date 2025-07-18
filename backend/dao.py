@@ -31,6 +31,9 @@ class StoryDAO:
                 "story_mode": story.story_mode,
                 "cover_image_url": story.cover_image_url,
                 "cover_image_name": story.cover_image_name,
+                "background_story": story.background_story,
+                "future_story": story.future_story,
+                "scenes_paragraph": getattr(story, "scenes_paragraph", ""),
                 "status": "created",
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat()
@@ -190,6 +193,16 @@ class StoryDAO:
         except Exception as e:
             print(f"Error fetching all stories: {e}")
             return []
+        
+    def get_all_story_titles(self):
+        """Get all story titles from database"""
+        try:
+            # Get all stories from database and extract titles
+            all_stories = self.get_all_stories()
+            return {story.title.lower() for story in all_stories}
+        except Exception as e:
+            print(f"Error fetching story titles from database: {e}")
+            return set()
 
 
 class CharacterDAO:
@@ -317,6 +330,9 @@ class SceneDAO:
                 "id": scene_id,
                 "story_id": story_id,
                 "scene_number": scene_number,
+                "title": scene.title,
+                "narrative_text": scene.narrative_text,
+                "image_prompt": scene.image_prompt,
                 "image_url": scene.image_url,
                 "paragraph": scene.paragraph,
                 "created_at": datetime.utcnow().isoformat()
@@ -345,7 +361,7 @@ class SceneDAO:
                     # Create a scene object with the available data
                     scene = Scene(
                         title=scene_data.get("title", ""),
-                        narrative_text=scene_data.get("paragraph", ""),
+                        narrative_text=scene_data.get("narrative_text", ""),
                         scene_number=scene_data.get("scene_number", 0),
                         image_prompt=scene_data.get("image_prompt", "")
                     )

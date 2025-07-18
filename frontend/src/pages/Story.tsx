@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 import { useAuth } from "@/contexts/AuthContext";
-import { ChevronLeft, ChevronRight, RotateCcw, Check, Settings, Image, Plus, Coins, Loader2, AlertCircle, Upload } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw, Check, Settings, Image, Plus, Coins, Loader2, AlertCircle, Upload, Save } from "lucide-react";
+import { API_URL } from '../lib/config';
 
 interface StoryData {
   id: string;
@@ -45,11 +46,51 @@ const Story = () => {
     { name: "", description: "", image: null as File | null, imageUrl: "" },
     { name: "", description: "", image: null as File | null, imageUrl: "" }
   ]);
+  
+  // Add debugging for character state changes
+  useEffect(() => {
+    console.log("🎭 Characters state changed to:", characters.length, characters.map(c => c.name || "unnamed"));
+  }, [characters]);
   const [storyText, setStoryText] = useState("The different scenes will be displayed here once you start writing...");
   const [backgroundStory, setBackgroundStory] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
+  const [imageCacheTimestamp, setImageCacheTimestamp] = useState<number>(Date.now());
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Helper function to render story text with proper paragraph formatting
+  const renderStoryText = (text: string) => {
+    if (!text) return <p className="text-gray-700 leading-relaxed">No story content available.</p>;
+    
+    // Split by double newlines to separate paragraphs/scenes
+    const paragraphs = text.split('\n\n').filter(para => para.trim() !== '');
+    
+    return (
+      <div className="space-y-4">
+        {paragraphs.map((paragraph, index) => {
+          // Check if this looks like a scene header
+          const isSceneHeader = paragraph.match(/^(Scene \d+|Chapter \d+|Part \d+)/i) || 
+                               paragraph.match(/^\*\*.*\*\*$/) || 
+                               paragraph.length < 100 && paragraph.includes(':');
+          
+          if (isSceneHeader) {
+            return (
+              <h4 key={index} className="text-lg font-semibold text-gray-900 mt-6 first:mt-0">
+                {paragraph.replace(/\*\*/g, '')}
+              </h4>
+            );
+          }
+          
+          return (
+            <p key={index} className="text-gray-700 leading-relaxed">
+              {paragraph}
+            </p>
+          );
+        })}
+      </div>
+    );
+  };
 
   // Helper function to extract cover image URL from background story
   const extractCoverImageUrl = (backgroundStory: string): { cleanStory: string; imageUrl: string } => {
@@ -64,6 +105,9 @@ const Story = () => {
 
   // Fetch story data when component mounts or storyId changes
   useEffect(() => {
+    console.log("🔄 useEffect triggered, storyId:", storyId);
+    console.log("📊 Current characters count before fetch:", characters.length);
+    
     if (storyId) {
       fetchStoryData(storyId);
     } else {
@@ -77,7 +121,7 @@ const Story = () => {
       setLoading(true);
       setError("");
 
-      const response = await fetch(`http://localhost:8002/api/stories/${id}`);
+      const response = await fetch(`${API_URL}stories/${id}`);
       
       if (!response.ok) {
         if (response.status === 404) {
@@ -103,6 +147,8 @@ const Story = () => {
         }
         
         setStoryData(result.story);
+        // Update cache timestamp to force image refresh
+        setImageCacheTimestamp(Date.now());
         
         // Extract cover image URL from background story
         if (result.story.background_story) {
@@ -114,6 +160,12 @@ const Story = () => {
         }
         
         // Update characters based on story data or initialize default
+        console.log("🔍 Loading characters for story:", id);
+        console.log("📊 Current characters state before update:", characters.length, characters);
+        console.log("📋 Story data nb_chars:", result.story.nb_chars);
+        console.log("📋 Story data nb_scenes:", result.story.nb_scenes);
+        console.log("👥 Characters from database:", result.story.characters?.length || 0, result.story.characters);
+        
         if (result.story.characters && result.story.characters.length > 0) {
           // Load existing characters from story data
           const loadedCharacters = result.story.characters.map((char: any) => ({
@@ -122,7 +174,28 @@ const Story = () => {
             image: null as File | null,
             imageUrl: char.image_url || ""  // Use the image_url from database
           }));
-          setCharacters(loadedCharacters);
+          
+          // Ensure we have the correct number of character slots based on nb_chars
+          const expectedCharacterCount = result.story.nb_chars || 2;
+          const allCharacters = [...loadedCharacters];
+          
+          // Pad with empty characters if we have fewer than expected
+          while (allCharacters.length < expectedCharacterCount) {
+            allCharacters.push({
+              name: "",
+              description: "",
+              image: null as File | null,
+              imageUrl: ""
+            });
+          }
+          
+          // Trim if we have more than expected (shouldn't happen, but safety check)
+          if (allCharacters.length > expectedCharacterCount) {
+            allCharacters.splice(expectedCharacterCount);
+          }
+          
+          console.log("🎭 Final character array:", allCharacters.length, allCharacters);
+          setCharacters(allCharacters);
         } else {
           // Initialize default characters based on nb_chars
           const numCharacters = result.story.nb_chars || 2;
@@ -132,6 +205,7 @@ const Story = () => {
             image: null as File | null,
             imageUrl: ""
           }));
+          console.log("🆕 Initializing default characters:", initialCharacters.length, "based on nb_chars:", numCharacters);
           setCharacters(initialCharacters);
         }
 
@@ -183,7 +257,7 @@ const Story = () => {
       formData.append('name', 'Character Image');
       formData.append('description', 'Character image for the story');
 
-      const response = await fetch('http://localhost:8002/api/characters/upload', {
+      const response = await fetch(`${API_URL}characters/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -195,7 +269,7 @@ const Story = () => {
         updatedCharacters[index] = { 
           ...updatedCharacters[index], 
           image: file,
-          imageUrl: `http://localhost:8002${result.image_url}`
+          imageUrl: result.image_url
         };
         setCharacters(updatedCharacters);
         console.log('Character image uploaded successfully:', result);
@@ -274,7 +348,7 @@ const Story = () => {
       // First, update the story with background story and basic info
       console.log(storyId)
       console.log(JSON.stringify(storyUpdateData))
-      const updateResponse = await fetch(`http://localhost:8002/api/stories/${storyId}`, {
+      const updateResponse = await fetch(`${API_URL}stories/${storyId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -306,7 +380,7 @@ const Story = () => {
           }))
         };
 
-        const updateCharsResponse = await fetch(`http://localhost:8002/api/stories/${storyId}/characters`, {
+        const updateCharsResponse = await fetch(`${API_URL}stories/${storyId}/characters`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -348,7 +422,7 @@ const Story = () => {
 
       console.log('Generating story with data:', generateData);
 
-      const generateResponse = await fetch('http://localhost:8002/api/stories/generate-story', {
+      const generateResponse = await fetch(`${API_URL}stories/generate-story`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -408,7 +482,7 @@ const Story = () => {
       console.log("🎨 Starting image generation...");
       
       // Call the generate images API
-      const response = await fetch('http://localhost:8002/api/stories/generate-images', {
+      const response = await fetch(`${API_URL}stories/generate-images`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -438,6 +512,64 @@ const Story = () => {
     } finally {
       // Hide loading state
       setIsGeneratingImages(false);
+    }
+  };
+
+  const handleRefreshImages = () => {
+    const newTimestamp = Date.now();
+    console.log(`🔄 Refreshing image cache... New timestamp: ${newTimestamp}`);
+    setImageCacheTimestamp(newTimestamp);
+  };
+
+  const handleDownloadStory = async () => {
+    if (!storyId) {
+      console.error("No story ID available for download");
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+      console.log("📦 Starting story package download...");
+
+      const response = await fetch(`${API_URL}stories/${storyId}/download`);
+      
+      if (!response.ok) {
+        throw new Error(`Download failed: ${response.status}`);
+      }
+
+      // Get the filename from response headers or use default
+      const contentDisposition = response.headers.get('Content-Disposition');
+      let filename = `${storyData?.title || 'story'}_package.zip`;
+      
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename=(.+)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/"/g, '');
+        }
+      }
+
+      // Create blob and download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      // Create temporary download link
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+      console.log("✅ Story package downloaded successfully!");
+      
+    } catch (error: any) {
+      console.error('Error downloading story:', error);
+      alert(`Failed to download story package: ${error.message}`);
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -654,7 +786,7 @@ const Story = () => {
                 <CardContent className="p-6">
                   <h3 className="text-xl font-semibold mb-4">Storyline</h3>
                   <div className="bg-gray-50 rounded-lg p-4 min-h-[200px] max-h-[300px] overflow-y-auto">
-                    <p className="text-gray-700 leading-relaxed">{storyText}</p>
+                    {renderStoryText(storyText)}
                   </div>
                   <div className="flex items-center justify-between mt-4">
                     <div className="flex space-x-2">
@@ -705,11 +837,11 @@ const Story = () => {
                           <div className="aspect-square bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center border border-gray-300">
                             {scene?.image_url ? (
                               <img
-                                src={`http://localhost:8002${scene.image_url}`}  // Add server URL prefix
+                                src={`${scene.image_url}?v=${imageCacheTimestamp}`}  // Cache-busting with refresh timestamp
                                 alt={`Scene ${index + 1}`}
                                 className="w-full h-full object-cover"
-                                onLoad={() => console.log(`✅ Image loaded for scene ${index + 1}: ${scene.image_url}`)}
-                                onError={(e) => console.error(`❌ Image failed to load for scene ${index + 1}:`, scene.image_url, e)}
+                                onLoad={() => console.log(`✅ Image loaded for scene ${index + 1}: ${scene.image_url}?v=${imageCacheTimestamp}`)}
+                                onError={(e) => console.error(`❌ Image failed to load for scene ${index + 1}:`, `${scene.image_url}?v=${imageCacheTimestamp}`, e)}
                               />
                             ) : (
                               <div className="text-center">
@@ -733,12 +865,21 @@ const Story = () => {
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-2 mt-4">
-                <Button variant="outline">
+                <Button onClick={handleDraw} variant="outline">
                   <RotateCcw className="w-4 h-4 mr-2" />
                   Redraw
                 </Button>
-                <Button variant="outline">
-                  <Image className="w-4 h-4" />
+                <Button 
+                  variant="outline"
+                  onClick={handleDownloadStory}
+                  disabled={isDownloading}
+                >
+                  {isDownloading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  {isDownloading ? "Downloading..." : ""}
                 </Button>
               </div>
             </div>

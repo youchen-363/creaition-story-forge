@@ -2,28 +2,18 @@ from google import genai
 from google.genai import types
 from PIL import Image
 from io import BytesIO
-import base64
 import os
 import time
-from pathlib import Path
-from dotenv import load_dotenv
 from Scene import Scene 
 from User_Character import User_Character
-
-#load_dotenv()
-#client = genai.Client(api_key=os.getenv("GEMINI_PAID_API_KEY"))
+from supabase_storage import upload_generated_image_to_supabase, save_temp_image_for_upload
 
 def generate_images_with_updates(client: genai.Client, story_name: str, chars_data: list[User_Character], scenes: list[Scene], scene_dao=None, story_id=None):
-    generated_image_urls = []  # Changed to return list of file paths
-    output_dir = "output"
-    os.makedirs(output_dir, exist_ok=True)
+    generated_image_urls = []  # Return list of Supabase URLs
     uploaded_reference_images = []
     print(f"Processing {len(chars_data)} characters for reference images...")
     
     for char_data in chars_data:
-        # Convert URL to local file path
-        # URL format: http://localhost:8002/assets/character_xxx.jpeg
-        # Local path: assets/character_xxx.jpeg
         print("link : ", char_data.image_url)
         
         # Skip characters without valid image URLs
@@ -31,22 +21,19 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
             print(f"Skipping character {char_data.name} - no valid image URL")
             continue
             
-        if char_data.image_url.startswith('http://'):
-            # Extract filename from URL
-            filename = char_data.image_url.split('/assets/')[-1]
-            local_file_path = Path("assets") / filename
-        else:
-            # Assume it's already a local path
-            local_file_path = Path(char_data.image_url)
-        
-        # Check if the file actually exists
-        if not local_file_path.exists():
-            print(f"Warning: Character image file does not exist: {local_file_path}")
+        # All character images are now stored in Supabase storage
+        # Download to temporary file for Gemini upload
+        try:
+            temp_file_path = save_temp_image_for_upload(char_data.image_url)
+            uploaded_file = client.files.upload(file=temp_file_path)
+            uploaded_reference_images.append(uploaded_file)
+            print(f"✅ Successfully uploaded reference image from Supabase: {char_data.image_url}")
+            
+            # Clean up temp file
+            os.unlink(temp_file_path)
+        except Exception as e:
+            print(f"❌ Failed to process Supabase image for {char_data.name}: {e}")
             continue
-        
-        uploaded_file = client.files.upload(file=str(local_file_path))
-        uploaded_reference_images.append(uploaded_file)
-        print(f"✅ Successfully uploaded reference image: {str(local_file_path)}")
     
     print(f"Total reference images uploaded: {len(uploaded_reference_images)}")
     print(f"Starting generation for {len(scenes)} scenes...")
@@ -55,27 +42,23 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
         scene_image_url = ""  # Default empty path for failed generations
         print(f"\n=== PROCESSING SCENE {scene.scene_number} ===")
         
-        # Replace spaces with underscores to avoid URL encoding issues
-        safe_story_name = story_name.replace(" ", "_")
-        
-        # --- THIS IS THE PROMPT YOU WOULD PASS TO THE IMAGEN API ---
-        # It's the `image_generation_prompt` directly.
-        # You can add a prefix if you want, but the detailed prompt is what matters.
-        # imagen_prompt = scene.'image_generation_prompt']
-        
-        # You could also add more general framing like this, but the core is the detailed prompt:
-        prompt = (
-            f"Without any inappropriate or NSFW content, create an image."
-            f"No text, speech bubbles, or captions should appear in the image."
-            f"This is scene {scene.scene_number} of a dynamic visual narrative, titled '{scene.title}'."
-            f"Here is the detailed visual description and art style guidance for this scene: {scene.image_prompt}"
-            f"The narrative for this scene is: '{scene.narrative_text}'"
-        )
+        prompt = f""" 
+            You are a highly skilled Visual Narrative AI Director and Prompt Engineer for an AI image generation system. 
+            Your ultimate goal is to help build dynamic visual narratives by transforming story segments into compelling, high-quality illustrated scenes.
 
-        print(f"Generating image for scene {scene.scene_number}: '{scene.title}'")
+            Generate a high-quality visual narrative image for scene {scene.scene_number} of a dynamic story, titled '{scene.title}'. 
+            IMPORTANT: The image MUST be perfectly square with a 1:1 aspect ratio (equal width and height). Generate a square image only.
+            The image must contain no inappropriate/NSFW content, text, speech bubbles, or captions. 
+            Depict the complete storytelling moment, including all relevant characters, their interactions, expressions, poses, and the environment as described: {scene.image_prompt}. 
+            Consider the overarching narrative of this scene: '{scene.narrative_text}'
+            
+            ASPECT RATIO REQUIREMENT: Generate a square image with 1:1 aspect ratio. Width must equal height.
+            """
+
+        print(f"Generating image for scene {scene.scene_number}: '{scene.title or 'Untitled Scene'}'")
         print(f"Scene {scene.scene_number} prompt length: {len(prompt)} characters")
-        print(f"Scene {scene.scene_number} image_prompt: {scene.image_prompt[:100]}...")
-        print(f"Scene {scene.scene_number} narrative_text: {scene.narrative_text[:100]}...")
+        print(f"Scene {scene.scene_number} image_prompt: {(scene.image_prompt or 'No prompt')[:100]}...")
+        print(f"Scene {scene.scene_number} narrative_text: {(scene.narrative_text or 'No narrative')[:100]}...")
         print(f"Using prompt:\n{prompt[:300]}...\n") # Print first 300 chars for brevity
 
         try:
@@ -83,14 +66,19 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
                 model="gemini-2.0-flash-preview-image-generation",
                 contents=[prompt, uploaded_reference_images],
                 config=types.GenerateContentConfig(
-                response_modalities=['TEXT', 'IMAGE']
+                    response_modalities=['TEXT', 'IMAGE'],
+                    candidate_count=1,
+                    max_output_tokens=4096,
+                    temperature=0.7
                 )
             )
             
             # Debug: Print response structure
             print(f"DEBUG: Response type: {type(response)}")
             print(f"DEBUG: Has candidates: {hasattr(response, 'candidates')}")
-            if hasattr(response, 'candidates') and response.candidates:
+            print(f"DEBUG: Candidates value: {response.candidates if hasattr(response, 'candidates') else 'No candidates attr'}")
+            
+            if hasattr(response, 'candidates') and response.candidates is not None and len(response.candidates) > 0:
                 print(f"DEBUG: Number of candidates: {len(response.candidates)}")
                 candidate = response.candidates[0]
                 print(f"DEBUG: Candidate content type: {type(candidate.content)}")
@@ -130,34 +118,27 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
                                 output_image = Image.open(BytesIO(image_bytes))
                                 print(f"DEBUG: Successfully opened image: {output_image.size}")
 
-                                # 2. Determine file extension from mime_type (or default to .png)
-                                mime_type = part.inline_data.mime_type
-                                extension = ".png" # Default
-                                if "jpeg" in mime_type:
-                                    extension = ".jpg"
-                                elif "webp" in mime_type:
-                                    extension = ".webp"
-
-                                # 3. Construct the full file path
-                                filename = f"{safe_story_name}_{scene.scene_number}{extension}"
-                                file_path = os.path.join(output_dir, filename)
-
-                                # 4. Save the image
-                                output_image.save(file_path)
-                                print(f"Image saved successfully to: {file_path}")
-
-                                # Set the successful URL path (for web access)
-                                scene_image_url = f"/output/{filename}"
-                                
-                                # Update the database immediately if DAO is provided
-                                if scene_dao and story_id:
-                                    success = scene_dao.update_scene_image_url(story_id, scene.scene_number, scene_image_url)
-                                    if success:
-                                        print(f"💾 Updated scene {scene.scene_number} in database with image URL: {scene_image_url}")
-                                    else:
-                                        print(f"❌ Failed to update scene {scene.scene_number} in database")
-                                
-                                break # Successfully processed an image
+                                # Save image to Supabase storage instead of local file
+                                try:
+                                    # Upload to Supabase storage and get public URL
+                                    scene_image_url = upload_generated_image_to_supabase(
+                                        image_bytes, story_name, scene.scene_number
+                                    )
+                                    print(f"✅ Image uploaded to Supabase storage: {scene_image_url}")
+                                    
+                                    # Update the database immediately if DAO is provided
+                                    if scene_dao and story_id:
+                                        success = scene_dao.update_scene_image_url(story_id, scene.scene_number, scene_image_url)
+                                        if success:
+                                            print(f"💾 Updated scene {scene.scene_number} in database with image URL: {scene_image_url}")
+                                        else:
+                                            print(f"❌ Failed to update scene {scene.scene_number} in database")
+                                    
+                                    break # Successfully processed an image
+                                    
+                                except Exception as upload_error:
+                                    print(f"❌ Failed to upload image to Supabase: {upload_error}")
+                                    scene_image_url = ""  # Mark as failed
                                 
                             except Exception as image_error:
                                 print(f"Error processing image data: {image_error}")
@@ -184,21 +165,22 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
                     # Try once more with a simplified prompt for Scene 1 specifically
                     if scene.scene_number == 1:
                         print("🔄 Retrying Scene 1 with simplified prompt...")
-                        simple_prompt = (
-                            f"Create a graphic novel style image without text or speech bubbles. "
-                            f"Show a police officer examining evidence in an office setting. "
-                            f"Use dark blues and dramatic lighting."
-                        )
                         try:
                             retry_response = client.models.generate_content(
                                 model="gemini-2.0-flash-preview-image-generation",
-                                contents=[simple_prompt, uploaded_reference_images],
+                                contents=[prompt, uploaded_reference_images],
                                 config=types.GenerateContentConfig(
-                                response_modalities=['TEXT', 'IMAGE']
+                                    response_modalities=['TEXT', 'IMAGE'],
+                                    candidate_count=1,
+                                    max_output_tokens=4096,
+                                    temperature=0.7
                                 )
                             )
                             print(f"RETRY: Response type: {type(retry_response)}")
-                            if hasattr(retry_response, 'candidates') and retry_response.candidates and retry_response.candidates[0].content:
+                            if (hasattr(retry_response, 'candidates') and 
+                                retry_response.candidates is not None and 
+                                len(retry_response.candidates) > 0 and 
+                                retry_response.candidates[0].content):
                                 # Process the retry response the same way
                                 candidate = retry_response.candidates[0]
                                 if candidate.content and hasattr(candidate.content, 'parts'):
@@ -207,11 +189,12 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
                                             try:
                                                 image_bytes = part.inline_data.data
                                                 output_image = Image.open(BytesIO(image_bytes))
-                                                filename = f"{safe_story_name}_{scene.scene_number}.png"
-                                                file_path = os.path.join(output_dir, filename)
-                                                output_image.save(file_path)
-                                                scene_image_url = f"/output/{filename}"
-                                                print(f"✅ RETRY SUCCESS: {file_path}")
+                                                
+                                                # Upload retry image to Supabase storage
+                                                scene_image_url = upload_generated_image_to_supabase(
+                                                    image_bytes, story_name, scene.scene_number
+                                                )
+                                                print(f"✅ RETRY SUCCESS - uploaded to Supabase: {scene_image_url}")
                                                 
                                                 # Update the database immediately if DAO is provided
                                                 if scene_dao and story_id:
@@ -239,7 +222,7 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
         # Always add a path (empty string if failed) to maintain scene-to-path correspondence
         generated_image_urls.append(scene_image_url)
         print(f"=== SCENE {scene.scene_number} RESULT: {'SUCCESS' if scene_image_url else 'FAILED'} ===")
-        print(f"Generated path: {scene_image_url}")
+        print(f"Generated Supabase URL: {scene_image_url}")
         
         # Add a small delay between generations to avoid rate limiting
         if i < len(scenes) - 1:  # Don't delay after the last scene
@@ -250,15 +233,10 @@ def generate_images_with_updates(client: genai.Client, story_name: str, chars_da
     print(f"Total scenes: {len(scenes)}")
     print(f"Generated images: {len([url for url in generated_image_urls if url])}")
     print(f"Failed generations: {len([url for url in generated_image_urls if not url])}")
-    print(f"Image paths: {generated_image_urls}")
+    print(f"Supabase URLs: {generated_image_urls}")
     
     return generated_image_urls
 
 def generate_images(client: genai.Client, story_name: str, chars_data: list[User_Character], scenes: list[Scene]):
     """Original function for backward compatibility"""
     return generate_images_with_updates(client, story_name, chars_data, scenes, None, None)
-
-
-# Example usage:
-# generated_images = generate_comic_images(example_scenes_list, client)
-# print(f"\nGenerated {len(generated_images)} images.")
