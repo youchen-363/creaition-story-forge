@@ -19,6 +19,48 @@ backend/output
 backend/text_to_text.py
 backend/venv
 
+# Unused UI components
+frontend/src/components/ui/accordion.tsx
+frontend/src/components/ui/alert-dialog.tsx
+frontend/src/components/ui/alert.tsx
+frontend/src/components/ui/aspect-ratio.tsx
+frontend/src/components/ui/avatar.tsx
+frontend/src/components/ui/badge.tsx
+frontend/src/components/ui/breadcrumb.tsx
+frontend/src/components/ui/calendar.tsx
+frontend/src/components/ui/carousel.tsx
+frontend/src/components/ui/chart.tsx
+frontend/src/components/ui/checkbox.tsx
+frontend/src/components/ui/collapsible.tsx
+frontend/src/components/ui/context-menu.tsx
+frontend/src/components/ui/dialog.tsx
+frontend/src/components/ui/drawer.tsx
+frontend/src/components/ui/dropdown-menu.tsx
+frontend/src/components/ui/form.tsx
+frontend/src/components/ui/hover-card.tsx
+frontend/src/components/ui/input-otp.tsx
+frontend/src/components/ui/menubar.tsx
+frontend/src/components/ui/navigation-menu.tsx
+frontend/src/components/ui/pagination.tsx
+frontend/src/components/ui/progress.tsx
+frontend/src/components/ui/radio-group.tsx
+frontend/src/components/ui/resizable.tsx
+frontend/src/components/ui/scroll-area.tsx
+frontend/src/components/ui/sheet.tsx
+frontend/src/components/ui/sidebar.tsx
+frontend/src/components/ui/skeleton.tsx
+frontend/src/components/ui/slider.tsx
+frontend/src/components/ui/switch.tsx
+frontend/src/components/ui/table.tsx
+frontend/src/components/ui/tabs.tsx
+frontend/src/components/ui/toast.tsx
+frontend/src/components/ui/toggle-group.tsx
+frontend/src/components/ui/toggle.tsx
+frontend/src/components/ui/tooltip.tsx
+
+# Development helper files
+start-simple.bat
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
