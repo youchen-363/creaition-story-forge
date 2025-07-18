@@ -88,11 +88,6 @@ npm i
 npm run dev
 ```
 
-
-Got it! Here's the updated `.env` section in plain markdown without emojis, suitable for a clean and professional `README.md`:
-
-
-
 ## Environment Variables
 
 To run the project locally, you need to configure environment variables for both the **backend** and **frontend**.
@@ -114,8 +109,6 @@ SUPABASE_ANON_KEY=
 API_HOST=0.0.0.0
 API_PORT=8002
 ```
-
-You can refer to `backend/.env.example` for the full list of required variables.
 Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey), and Supabase keys from your project settings dashboard.
 
 ---
