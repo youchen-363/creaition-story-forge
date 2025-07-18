@@ -13,9 +13,11 @@ dist-ssr
 *.local
 .vite
 
-*/__pycache__
+backend/__pycache__
 backend/assets
 backend/output
+backend/text_to_text.py
+backend/venv
 
 # Editor directories and files
 .vscode/*

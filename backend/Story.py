@@ -5,6 +5,7 @@ class Story:
         self.id = None  # Will be set when saved to database
         self.user_id = user_id
         self.title = title
+        self.status = "created"  # Default status
         self.nb_scenes = nb_scenes
         self.nb_chars = nb_chars
         self.story_mode = story_mode
@@ -13,6 +14,7 @@ class Story:
         self.chars = []
         self.background_story = ""
         self.future_story = ""
+        self.scenes_paragraph = ""  # Add scenes_paragraph field to store the storyline
         self.scenes = []
         self.created_at = None  # Will be set when saved to database
         self.updated_at = None  # Will be set when updated

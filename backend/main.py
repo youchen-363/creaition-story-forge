@@ -114,7 +114,7 @@ class StoryRequest(BaseModel):
 class CharacterRequest(BaseModel):
     name: str
     description: str
-    image_path: Optional[str] = None
+    image_url: Optional[str] = None
 
 class StoryResponse(BaseModel):
     success: bool
@@ -396,12 +396,12 @@ async def run_story_generation_pipeline(data: Dict[str, Any]):
             
             # Save images
             if images_result.get("images"):
-                for i, image_path in enumerate(images_result["images"]):
+                for i, image_url in enumerate(images_result["images"]):
                     image_data = {
                         "id": str(uuid.uuid4()),
                         "story_id": story_id,
                         "scene_number": i + 1,
-                        "image_path": image_path,
+                        "image_url": image_url,
                         "created_at": datetime.utcnow().isoformat()
                     }
                     supabase.table("generated_images").insert(image_data).execute()
@@ -453,7 +453,7 @@ async def upload_character_image(
         
         # Call MCP character extraction tool
         extraction_result = await call_mcp_tool("extract_character_from_image", {
-            "image_path": str(file_path),
+            "image_url": str(file_path),
             "character_name": name or "Unknown Character"
         })
         
@@ -464,7 +464,7 @@ async def upload_character_image(
             character_data = {
                 "name": name or extraction_result.get("suggested_name", "Unknown Character"),
                 "description": description or extraction_result.get("character_analysis", ""),
-                "image_path": str(file_path),
+                "image_url": str(file_path),
                 "image_url": image_url,
                 "analysis": extraction_result.get("character_analysis")
             }
@@ -481,7 +481,7 @@ async def upload_character_image(
             character_data = {
                 "name": name or "Unknown Character",
                 "description": description or "",
-                "image_path": str(file_path),
+                "image_url": str(file_path),
                 "image_url": image_url,
                 "analysis": ""
             }

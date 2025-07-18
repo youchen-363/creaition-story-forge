@@ -12,6 +12,7 @@ import { ChevronLeft, ChevronRight, RotateCcw, Check, Settings, Image, Plus, Coi
 
 interface StoryData {
   id: string;
+  user_id: string;  // Add user_id field
   title: string;
   nb_scenes: number;
   nb_chars: number;
@@ -20,6 +21,7 @@ interface StoryData {
   cover_image_name?: string;
   background_story: string;
   future_story: string;
+  scenes_paragraph?: string;  // Add scenes_paragraph field
   analysis: string;
   num_scenes: number;
   status: string;
@@ -47,6 +49,7 @@ const Story = () => {
   const [backgroundStory, setBackgroundStory] = useState("");
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string>("");
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false);
 
   // Helper function to extract cover image URL from background story
   const extractCoverImageUrl = (backgroundStory: string): { cleanStory: string; imageUrl: string } => {
@@ -86,7 +89,19 @@ const Story = () => {
       const result = await response.json();
       
       if (result.success && result.story) {
-        console.log(result.story)
+        console.log("📖 Full story data received:", result.story);
+        console.log("🎬 Scenes data:", result.story.scenes);
+        if (result.story.scenes) {
+          result.story.scenes.forEach((scene: any, index: number) => {
+            console.log(`Scene ${index + 1}:`, {
+              scene_number: scene.scene_number,
+              title: scene.title,
+              image_url: scene.image_url,
+              hasImageUrl: !!scene.image_url
+            });
+          });
+        }
+        
         setStoryData(result.story);
         
         // Extract cover image URL from background story
@@ -105,7 +120,7 @@ const Story = () => {
             name: char.name || "",
             description: char.description || "",
             image: null as File | null,
-            imageUrl: ""
+            imageUrl: char.image_url || ""  // Use the image_url from database
           }));
           setCharacters(loadedCharacters);
         } else {
@@ -120,16 +135,23 @@ const Story = () => {
           setCharacters(initialCharacters);
         }
 
-        // Set story text based on status
-        if (result.story.status === 'completed' && result.story.future_story) {
+        // Set story text based on status and available content
+        if (result.story.scenes_paragraph) {
+          // Prioritize scenes_paragraph (the generated storyline)
+          setStoryText(result.story.scenes_paragraph);
+        } else if (result.story.status === 'completed' && result.story.future_story) {
           setStoryText(result.story.future_story);
         } else if (result.story.status === 'generating') {
           setStoryText("🎨 Your story is being generated... This may take a few minutes. Please check back soon!");
         } else if (result.story.status === 'failed') {
           setStoryText("❌ Story generation failed. Please try creating the story again.");
         } else {
-          const { cleanStory } = extractCoverImageUrl(result.story.background_story || "");
-          setStoryText(cleanStory || "Your story will be displayed here once you start writing...");
+          setStoryText("Your story will be displayed here once you start writing...");
+        }
+
+        // Preload scenes_paragraph for image generation
+        if (result.story.scenes_paragraph) {
+          console.log("Scenes paragraph preloaded:", result.story.scenes_paragraph);
         }
       } else {
         setError("Failed to load story data");
@@ -228,6 +250,15 @@ const Story = () => {
 
       setStoryText("🎨 Generating your story... This may take a few minutes. Please wait...");
 
+      // Scroll to storyline section
+      const storylineSection = document.getElementById('storyline-section');
+      if (storylineSection) {
+        storylineSection.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start' 
+        });
+      }
+
       // First, save the background story and characters to the story
       const storyUpdateData = {
         title: storyData?.title || "Untitled Story",
@@ -270,8 +301,8 @@ const Story = () => {
           characters: charactersToSave.map(char => ({
             name: char.name,
             description: char.description,
-            img_url: char.imageUrl || null,
-            img_name: char.image ? char.image.name : null
+            image_url: char.imageUrl || null,  // Changed from img_url to image_url
+            image_name: char.image ? char.image.name : null  // Changed from img_name to image_name
           }))
         };
 
@@ -297,20 +328,21 @@ const Story = () => {
 
       // Now call the AI generation API
       const generateData = {
+        story_id: storyId,  // Add story_id to the request
         title: storyData?.title || "Untitled Story",
         nb_scenes: storyData?.nb_scenes || 4,
         nb_chars: storyData?.nb_chars || 2,
         story_mode: storyData?.story_mode || "adventure",
-        user_id: storyId, // Use story ID as user ID for now
+        user_id: storyData?.user_id || user?.id,  // Use actual user_id from storyData
         cover_image_url: storyData?.cover_image_url || null,
         cover_image_name: storyData?.cover_image_name || null,
         background_story: backgroundStory,
         future_story: "",
         characters: validCharacters.map(char => ({
           name: char.name,
-          desc: char.description,
-          img_url: char.imageUrl || null,  // Send the image URL as img_url
-          img_name: char.image ? char.image.name : null  // Send the image filename as img_name
+          description: char.description,  // Changed from desc to description
+          image_url: char.imageUrl || null,  // Changed from img_url to image_url
+          image_name: char.image ? char.image.name : null  // Changed from img_name to image_name
         }))
       };
 
@@ -327,12 +359,22 @@ const Story = () => {
       const generateResult = await generateResponse.json();
 
       if (generateResult.success) {
-        setStoryText("✅ Story generation started successfully! The AI is now creating your narrative. Please check back in a few minutes to see the results.");
+        // Immediately update the story text with the generated scenes_paragraph
+        if (generateResult.scenes_paragraph) {
+          setStoryText(generateResult.scenes_paragraph);
+        } else {
+          setStoryText("✅ Story generation completed! Your narrative has been created.");
+        }
         
-        // Refresh story data after a short delay
-        setTimeout(() => {
-          fetchStoryData(storyId);
-        }, 2000);
+        // Update the story data with the new information
+        setStoryData({
+          ...storyData!,
+          scenes_paragraph: generateResult.scenes_paragraph || "",
+          analysis: generateResult.analysis || "",
+          status: "story_generated"
+        });
+        
+        console.log('Story generated successfully:', generateResult);
       } else {
         setStoryText("❌ Failed to generate story. Please try again.");
         console.error('Story generation failed:', generateResult);
@@ -347,6 +389,56 @@ const Story = () => {
   const handleRewrite = () => {
     // Call handleWrite to regenerate the story with current data
     handleWrite();
+  };
+
+  const handleDraw = async () => {
+    if (!storyId) {
+      console.error("No story ID available for image generation");
+      return;
+    }
+
+    if (!storyData?.scenes_paragraph) {
+      alert("Please generate the story first before creating images.");
+      return;
+    }
+
+    try {
+      // Show loading state
+      setIsGeneratingImages(true);
+      console.log("🎨 Starting image generation...");
+      
+      // Call the generate images API
+      const response = await fetch('http://localhost:8002/api/stories/generate-images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          story_id: storyId
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log("✅ Images generated successfully!", result);
+        
+        // Refresh the story data to get the updated scenes with images
+        await fetchStoryData(storyId);
+        
+        alert(`🎨 Successfully generated ${result.total_scenes} images for your story!`);
+      } else {
+        console.error("❌ Image generation failed:", result);
+        alert(`Failed to generate images: ${result.error || result.message}`);
+      }
+
+    } catch (error: any) {
+      console.error('Error generating images:', error);
+      alert("❌ An error occurred while generating images. Please try again.");
+    } finally {
+      // Hide loading state
+      setIsGeneratingImages(false);
+    }
   };
 
   return (
@@ -555,7 +647,7 @@ const Story = () => {
           </div>
 
           {/* Story Section */}
-          <div className="space-y-8">
+          <div id="storyline-section" className="space-y-8">
             {/* Storyline */}
             <div>
               <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
@@ -574,7 +666,11 @@ const Story = () => {
                         <RotateCcw className="w-4 h-4 mr-2" />
                         Rewrite
                       </Button>
-                      <Button variant="default" className="bg-green-600 hover:bg-green-700">
+                      <Button 
+                        variant="default" 
+                        className="bg-green-600 hover:bg-green-700"
+                        onClick={handleDraw}
+                      >
                         <Check className="w-4 h-4" /> Draw
                       </Button>
                     </div>
@@ -589,26 +685,48 @@ const Story = () => {
 
             {/* Storybook View */}
             <div>
+              {isGeneratingImages && (
+                <h3 className="text-xl font-semibold mb-4">Drawing...</h3>
+              )}
               <Card className="shadow-xl border-0 bg-white/80 backdrop-blur-sm">
                 <CardContent className="p-0">
                   <div className="grid grid-cols-4 gap-0">
-                    {Array.from({ length: storyData?.nb_scenes || 4 }, (_, index) => (
-                      <div key={index} className="flex flex-col">
-                        {/* Square Image Box */}
-                        <div className="aspect-square bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center border border-gray-300">
-                          <div className="text-center">
-                            <Image className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                            <p className="text-xs text-gray-500">Scene {index + 1}</p>
+                    {Array.from({ length: storyData?.nb_scenes || 4 }, (_, index) => {
+                      const scene = storyData?.scenes?.find(s => s.scene_number === index + 1);
+                      console.log(`🖼️ Rendering scene ${index + 1}:`, {
+                        scene,
+                        hasScene: !!scene,
+                        imageUrl: scene?.image_url,
+                        hasImageUrl: !!scene?.image_url
+                      });
+                      return (
+                        <div key={index} className="flex flex-col">
+                          {/* Square Image Box */}
+                          <div className="aspect-square bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center border border-gray-300">
+                            {scene?.image_url ? (
+                              <img
+                                src={`http://localhost:8002${scene.image_url}`}  // Add server URL prefix
+                                alt={`Scene ${index + 1}`}
+                                className="w-full h-full object-cover"
+                                onLoad={() => console.log(`✅ Image loaded for scene ${index + 1}: ${scene.image_url}`)}
+                                onError={(e) => console.error(`❌ Image failed to load for scene ${index + 1}:`, scene.image_url, e)}
+                              />
+                            ) : (
+                              <div className="text-center">
+                                <Image className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                                <p className="text-xs text-gray-500">Scene {index + 1}</p>
+                              </div>
+                            )}
+                          </div>
+                          {/* Scene Name Below */}
+                          <div className="p-2 bg-white">
+                            <p className="text-xs text-gray-700 text-center font-medium">
+                              {scene?.title || `Scene ${index + 1}`}
+                            </p>
                           </div>
                         </div>
-                        {/* Scene Name Below */}
-                        <div className="p-2 bg-white">
-                          <p className="text-xs text-gray-700 text-center font-medium">
-                            Scene {index + 1}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </CardContent>
               </Card>

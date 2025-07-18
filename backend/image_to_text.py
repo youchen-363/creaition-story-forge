@@ -1,6 +1,8 @@
 from google import genai
 import json
 import re
+import os
+from pathlib import Path
 from User_Character import User_Character
 from Scene import Scene
 
@@ -10,7 +12,19 @@ def generate_narrative_scenes(client: genai.Client, chars_data: User_Character, 
     all_characters_context = []
     for char_data in chars_data:
         all_characters_context.append(f"Character Name: {char_data.name}\nCharacter Description: {char_data.description}")
-        uploaded_file = client.files.upload(file=char_data.image_url)
+        
+        # Convert URL to local file path
+        # URL format: http://localhost:8002/assets/character_xxx.jpeg
+        # Local path: assets/character_xxx.jpeg
+        if char_data.image_url.startswith('http://'):
+            # Extract filename from URL
+            filename = char_data.image_url.split('/assets/')[-1]
+            local_file_path = Path("assets") / filename
+        else:
+            # Assume it's already a local path
+            local_file_path = Path(char_data.image_url)
+        
+        uploaded_file = client.files.upload(file=str(local_file_path))
         uploaded_files.append(uploaded_file)
     dynamic_character_section = "\n".join(all_characters_context)
    
@@ -235,12 +249,6 @@ def format_response(chars_data: User_Character, raw_response: str) -> tuple[str,
         scenes_list = []
         scenes_paragraph_parts = []
         
-        # Header for scenes paragraph
-        scenes_paragraph_parts.append("=" * 80)
-        scenes_paragraph_parts.append("GENERATED SCENES")
-        scenes_paragraph_parts.append("=" * 80)
-        scenes_paragraph_parts.append("")
-        
         for scene_data in scenes_data:
             # Create Scene object
             scene = Scene(
@@ -253,12 +261,8 @@ def format_response(chars_data: User_Character, raw_response: str) -> tuple[str,
             
             # Add to scenes paragraph
             scenes_paragraph_parts.append(f"🎬 SCENE {scene.scene_number}: {scene.title}")
-            scenes_paragraph_parts.append("-" * 50)
-            scenes_paragraph_parts.append(f"📖 Narrative: {scene.narrative_text}")
             scenes_paragraph_parts.append("")
-            scenes_paragraph_parts.append(f"🎨 Image Prompt: {scene.image_prompt}")
-            scenes_paragraph_parts.append("")
-            scenes_paragraph_parts.append("=" * 50)
+            scenes_paragraph_parts.append(f"{scene.narrative_text}")
             scenes_paragraph_parts.append("")
         
         scenes_paragraph = "\n".join(scenes_paragraph_parts)

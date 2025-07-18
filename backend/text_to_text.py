@@ -110,12 +110,13 @@ def parse_scenes(raw_response: str) -> list:
         
         # Validate and clean each scene according to new format
         scenes = []
-        for scene in raw_scenes:
-            if isinstance(scene, dict) and "scene_number" in scene:
-                scene = scene(
-                    scene.get("scene_number", 0),
-                    scene.get("scene_title", "Untitled"),
-                    scene.get("image_generation_prompt", "")
+        for scene_data in raw_scenes:
+            if isinstance(scene_data, dict) and "scene_number" in scene_data:
+                scene = Scene(
+                    title=scene_data.get("scene_title", "Untitled"),
+                    narrative_text=scene_data.get("scene_narrative_text", ""),
+                    scene_number=scene_data.get("scene_number", 0),
+                    image_prompt=scene_data.get("image_generation_prompt", "")
                 )
                 scenes.append(scene)
         return scenes

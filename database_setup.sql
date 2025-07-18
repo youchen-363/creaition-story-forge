@@ -45,7 +45,7 @@ CREATE TABLE public.user_character (
     story_id UUID NOT NULL REFERENCES public.stories(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    image_path TEXT,
+    image_url TEXT,
     analysis TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

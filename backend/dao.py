@@ -84,6 +84,7 @@ class StoryDAO:
                 "cover_image_url": story.cover_image_url,
                 "cover_image_name": story.cover_image_name,
                 "background_story": story.background_story,
+                "scenes_paragraph": getattr(story, "scenes_paragraph", ""),  # Add scenes_paragraph
                 "updated_at": story.updated_at.isoformat() if story.updated_at else None
             }
             
@@ -117,6 +118,7 @@ class StoryDAO:
                 story.id = story_data.get("id")
                 story.background_story = story_data.get("background_story", "")
                 story.future_story = story_data.get("future_story", "")
+                story.scenes_paragraph = story_data.get("scenes_paragraph", "")  # Add scenes_paragraph
                 story.created_at = story_data.get("created_at")
                 story.updated_at = story_data.get("updated_at")
                 return story
@@ -146,6 +148,9 @@ class StoryDAO:
                         cover_image_url=story_data.get("cover_image_url", ""),
                         cover_image_name=story_data.get("cover_image_name", "")
                     )
+                    story.created_at = story_data.get("created_at")
+                    story.updated_at = story_data.get("updated_at")
+                    story.status = story_data.get("status", "created")
                     story.id = story_data.get("id")
                     story.background_story = story_data.get("background_story", "")
                     story.future_story = story_data.get("future_story", "")
@@ -203,7 +208,7 @@ class CharacterDAO:
                 "story_id": story_id_to_use,
                 "name": character.name,
                 "description": character.description,
-                "image_url": character.image_url,  # Store image_url in image_path field
+                "image_url": character.image_url,  # Store image_url in image_url field
                 "image_name": character.image_name,  # Store image_name in new field
                 "analysis": character.analysis,
                 "created_at": datetime.utcnow().isoformat()
@@ -224,7 +229,7 @@ class CharacterDAO:
                 "story_id": character.story_id,  # Include story_id in updates
                 "name": character.name,
                 "description": character.description,
-                "image_path": character.image_url,  # Store image_url in image_path field
+                "image_url": character.image_url,  # Store image_url in image_url field
                 "image_name": character.image_name,  # Store image_name in new field
                 "analysis": character.analysis,
                 "updated_at": datetime.utcnow().isoformat()
@@ -281,7 +286,7 @@ class CharacterDAO:
                 for char_data in result.data:
                     character = User_Character(
                         char_data.get("story_id", ""),  # story_id
-                        char_data.get("image_path", ""),  # image_url
+                        char_data.get("image_url", ""),  # image_url
                         char_data.get("image_name", ""),  # image_name
                         char_data.get("name", ""),      # name
                         char_data.get("description", "")  # description
@@ -338,7 +343,7 @@ class SceneDAO:
             if result.data:
                 for scene_data in result.data:
                     # Create a scene object with the available data
-                    scene = scene(
+                    scene = Scene(
                         title=scene_data.get("title", ""),
                         narrative_text=scene_data.get("paragraph", ""),
                         scene_number=scene_data.get("scene_number", 0),
@@ -353,6 +358,31 @@ class SceneDAO:
         except Exception as e:
             print(f"Error fetching story scenes: {e}")
             return []
+    
+    def update_scene_image_url(self, story_id: str, scene_number: int, image_url: str) -> bool:
+        """Update the image_url for a specific scene"""
+        try:
+            result = self.db.table("scenes")\
+                .update({"image_url": image_url})\
+                .eq("story_id", story_id)\
+                .eq("scene_number", scene_number)\
+                .execute()
+            return True
+        except Exception as e:
+            print(f"Error updating scene image URL: {e}")
+            return False
+    
+    def delete_story_scenes(self, story_id: str) -> bool:
+        """Delete all scenes for a specific story"""
+        try:
+            result = self.db.table("scenes")\
+                .delete()\
+                .eq("story_id", story_id)\
+                .execute()
+            return True
+        except Exception as e:
+            print(f"Error deleting story scenes: {e}")
+            return False
 
 
 class UserDAO:
