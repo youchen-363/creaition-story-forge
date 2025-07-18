@@ -34,14 +34,13 @@ CREATE TABLE public.stories (
     cover_image_url TEXT,
     cover_image_name VARCHAR(255),
     background_story TEXT,
-    future_story TEXT,
-    scenes_paragraph TEXT,
     status VARCHAR(50) DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    scenes_paragraph TEXT
 );
 
--- Create user_character table (renamed from characters to match class name)
+-- Create user_character table
 CREATE TABLE public.user_character (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     story_id UUID NOT NULL REFERENCES public.stories(id) ON DELETE CASCADE,
@@ -50,7 +49,8 @@ CREATE TABLE public.user_character (
     image_url TEXT,
     analysis TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    image_name TEXT
 );
 
 -- Create scenes table
