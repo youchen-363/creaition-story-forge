@@ -1,27 +1,34 @@
-# CreAItion Story Forge
+# CreAItion 
 
-A full-stack application for AI-powered story creation and comic generation.
+CreAItion is an AI-powered storytelling platform that enables users to transform simple ideas into fully illustrated, narrative-rich experiences. By combining advanced language models with image generation tools, the app allows anyone—whether a writer, educator, or creative hobbyist—to upload a story outline and character details, and instantly receive a complete visual story or comic. Designed to make storytelling accessible and engaging, CreAItion is especially valuable for producing children’s books, webcomics, and even educational visuals for school textbooks. It’s where imagination meets automation to bring stories to life.
+
+## What technologies are used for this project?
+
+This project is built with:
+- Backend: Python (FastAPI)
+- Frontend: Typescript (ReactJS + Vite), TailwindCSS
+- Database: Supabase
+- AI Integration: mllm gemini-2.5-flash & gemini-2.0-flash-preview-image-generation
+
 
 ## Project Structure
 
 ```
 project-root/
-├── backend/                 ← Python FastAPI backend
-│   ├── .env                ← Backend secrets (OpenAI key, DB URL)
-│   ├── requirements.txt    ← Python dependencies
-│   ├── Dockerfile         ← Backend container config
+├── backend/               ← Python FastAPI backend
+│   ├── .env               ← Backend secrets (Gemini & Supabase API key)
+|   ├── assets             ← Local storage
+│   ├── requirements.txt   ← Python dependencies
 │   ├── fast_api.py        ← Main FastAPI application
 │   ├── dao.py             ← Database access layer
 │   └── ...                ← Other backend modules
-├── frontend/               ← React/TypeScript frontend
-│   ├── .env               ← Frontend config (VITE_SUPABASE_URL)
+├── frontend/              ← React/TypeScript frontend
+│   ├── .env               ← Frontend config (Supabase API key)
 │   ├── package.json       ← Node.js dependencies
-│   ├── Dockerfile         ← Frontend container config
 │   ├── src/               ← React components and hooks
 │   └── ...                ← Other frontend files
-├── docker-compose.yml     ← Orchestrates both services + n8n
 ├── database_setup.sql     ← PostgreSQL schema for Supabase
-└── README.md              ← This file
+└── README.md              
 ```
 
 ## Quick Start
@@ -30,7 +37,7 @@ project-root/
 
 1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/youchen-363/creaition-story-forge.git
    cd creaition-story-forge
    ```
 
@@ -40,7 +47,9 @@ project-root/
    
    # Create virtual environment (recommended)
    python -m venv venv
+   
    venv\Scripts\activate  # On Windows PowerShell
+   source venv/bin/activate # Linux / Mac 
    
    # Install dependencies
    pip install -r requirements.txt
@@ -61,7 +70,7 @@ project-root/
    ```
 
 4. **Access the application**
-   - Frontend: http://localhost:3000
+   - Frontend: http://localhost:8080
    - Backend API: http://localhost:8002
    - API Docs: http://localhost:8002/docs
 
@@ -70,51 +79,57 @@ The only requirement is having Node.js & npm installed - [install with nvm](http
 Follow these steps:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+cd frontend
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+# Install dependencies
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Got it! Here's the updated `.env` section in plain markdown without emojis, suitable for a clean and professional `README.md`:
 
-**Use GitHub Codespaces**
 
-- Navigate to the main scene of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## What technologies are used for this project?
+## Environment Variables
 
-This project is built with:
+To run the project locally, you need to configure environment variables for both the **backend** and **frontend**.
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### Backend Environment (`backend/.env`)
 
-## How can I deploy this project?
+Create a `.env` file in the `backend/` directory with the following content:
 
-Simply open [Lovable](https://lovable.dev/projects/5e622e7a-846d-4d0e-9d05-eee30e4d0f85) and click on Share -> Publish.
+```env
+# Gemini API Keys
+GEMINI_API_KEY=
+GEMINI_PAID_API_KEY=
 
-## Can I connect a custom domain to my Lovable project?
+# Supabase Configuration
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
 
-Yes, you can!
+# API Configuration
+API_HOST=0.0.0.0
+API_PORT=8002
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+You can refer to `backend/.env.example` for the full list of required variables.
+Get your Gemini API key from [Google AI Studio](https://aistudio.google.com/app/apikey), and Supabase keys from your project settings dashboard.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+---
+
+### Frontend Environment (`frontend/.env`)
+
+Create a `.env` file in the `frontend/` directory with the following content:
+
+```env
+# Supabase Configuration
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+
+# API Configuration
+VITE_API_URL=http://localhost:8002
+```
+
