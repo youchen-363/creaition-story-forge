@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { API_URL } from '@/lib/config';
 
 interface UserData {
   id: string;
@@ -22,8 +23,6 @@ export const useUser = (): UseUserReturn => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8002'; // Changed to port 8002
-
   const syncUserWithBackend = async () => {
     if (!user) return;
 
@@ -35,8 +34,9 @@ export const useUser = (): UseUserReturn => {
 
       // Test if API is available first
       try {
-        console.log('useUser: Testing API availability at:', `${API_URL}/health`);
-        const healthResponse = await fetch(`${API_URL}/health`);
+        const baseUrl = API_URL.replace('/api/', '');
+        console.log('useUser: Testing API availability at:', `${baseUrl}/health`);
+        const healthResponse = await fetch(`${baseUrl}/health`);
         if (!healthResponse.ok) {
           throw new Error('API not available');
         }
@@ -48,8 +48,8 @@ export const useUser = (): UseUserReturn => {
       }
 
       // First try to get existing user by email
-      console.log('useUser: Fetching user from:', `${API_URL}/api/users/email/${user.email}`);
-      const getUserResponse = await fetch(`${API_URL}/api/users/email/${user.email}`);
+      console.log('useUser: Fetching user from:', `${API_URL}users/email/${user.email}`);
+      const getUserResponse = await fetch(`${API_URL}users/email/${user.email}`);
       
       if (!getUserResponse.ok) {
         console.error('useUser: Get user request failed:', getUserResponse.status, getUserResponse.statusText);
@@ -66,7 +66,7 @@ export const useUser = (): UseUserReturn => {
       } else {
         console.log('useUser: User not found, creating new user');
         // User doesn't exist, create them
-        const createResponse = await fetch(`${API_URL}/api/users/create`, {
+        const createResponse = await fetch(`${API_URL}users/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -105,7 +105,7 @@ export const useUser = (): UseUserReturn => {
     if (!user || !user.email) return false;
 
     try {
-      const response = await fetch(`${API_URL}/api/users/email/${user.email}/credits`, {
+      const response = await fetch(`${API_URL}users/email/${user.email}/credits`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,13 +2,12 @@ import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { API_URL } from '@/lib/config';
 
 const DatabaseTest = () => {
   const { user } = useAuth();
   const [testResult, setTestResult] = useState<string>('');
   const [loading, setLoading] = useState(false);
-
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8002';
 
   const testAPI = async () => {
     if (!user) {
@@ -21,7 +20,8 @@ const DatabaseTest = () => {
 
     try {
       // Test 1: Health check
-      const healthResponse = await fetch(`${API_URL}/health`);
+      const baseUrl = API_URL.replace('/api/', '');
+      const healthResponse = await fetch(`${baseUrl}/health`);
       
       if (!healthResponse.ok) {
         setTestResult('Connection established ✓');
@@ -30,14 +30,14 @@ const DatabaseTest = () => {
       }
 
       // Test 2: Get user by email
-      const userResponse = await fetch(`${API_URL}/api/users/email/${user.email}`);
+      const userResponse = await fetch(`${API_URL}users/email/${user.email}`);
       const userData = await userResponse.json();
 
       if (userData.success) {
         setTestResult(`Database connected ✓\nCredits: ${userData.user.credits}`);
       } else {
         // Test 3: Create user silently
-        const createResponse = await fetch(`${API_URL}/api/users/create`, {
+        const createResponse = await fetch(`${API_URL}users/create`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

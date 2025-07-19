@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Github, Mail, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { API_URL } from "@/lib/config";
 
 const Signup = () => {
   const navigate = useNavigate();
@@ -85,8 +86,7 @@ const Signup = () => {
       if (data.user) {
         // Sync user data with our custom users table
         try {
-          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-          const syncResponse = await fetch(`${API_URL}/api/users/sync`, {
+          const syncResponse = await fetch(`${API_URL}users/sync`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
