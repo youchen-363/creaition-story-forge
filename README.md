@@ -7,7 +7,7 @@ CreAItion is an AI-powered storytelling platform that enables users to transform
 This project is built with:
 - Backend: Python (FastAPI)
 - Frontend: Typescript (ReactJS + Vite), TailwindCSS
-- Database & Cloud Storage: Supabase
+- Database & Cloud Storage: PostgreSQL & Supabase
 - AI Integration: mllm gemini-2.5-flash & gemini-2.0-flash-preview-image-generation
 
 
@@ -34,7 +34,7 @@ project-root/
 
 ### Online Webapp
 Url: https://creaition.vercel.app
-**Test accounts:**
+#### Test accounts
   Username: test@example.com, test2@example.com, test3@example.com
   Password: test12345
 
