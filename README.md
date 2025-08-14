@@ -35,7 +35,7 @@ project-root/
 ### Online Webapp
 Url: https://creaition.vercel.app
 #### Test accounts
-  Username: test@example.com, test2@example.com, test3@example.com
+  Username: test@example.com, test2@example.com, test3@example.com  
   Password: test12345
 
 ### Development (Local)
