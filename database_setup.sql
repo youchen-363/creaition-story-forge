@@ -32,7 +32,6 @@ CREATE TABLE public.stories (
     nb_chars INTEGER NOT NULL DEFAULT 1,
     story_mode VARCHAR(100) NOT NULL DEFAULT 'adventure',
     cover_image_url TEXT,
-    cover_image_name VARCHAR(255),
     background_story TEXT,
     status VARCHAR(50) DEFAULT 'created',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -47,10 +46,7 @@ CREATE TABLE public.user_character (
     name VARCHAR(255) NOT NULL,
     description TEXT,
     image_url TEXT,
-    analysis TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    image_name TEXT
+    analysis TEXT
 );
 
 -- Create scenes table
@@ -103,10 +99,6 @@ CREATE TRIGGER update_users_updated_at
 
 CREATE TRIGGER update_stories_updated_at 
     BEFORE UPDATE ON public.stories 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_user_character_updated_at 
-    BEFORE UPDATE ON public.user_character 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_scenes_updated_at 

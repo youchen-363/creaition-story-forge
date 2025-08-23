@@ -398,23 +398,6 @@ def extract_content_manually(raw_response: str) -> tuple[str, str, list]:
     
     return "\n".join(analysis_output), scenes_paragraph, scenes_list
 
-def generate_future_story(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> tuple[str, str]:
-    """
-    Backward compatibility wrapper function
-    Returns: (analysis, future_story_text)
-    """
-    analysis, scenes_paragraph, scenes_list = generate_narrative_scenes(client, chars_data, background_story, nb_scenes)
-    
-    # Convert scenes list to a formatted future story text
-    future_story_parts = []
-    for scene in scenes_list:
-        scene_text = f"Scene {scene.scene_number}: {scene.title}\n"
-        scene_text += scene.narrative_text
-        future_story_parts.append(scene_text)
-    
-    future_story = "\n\n".join(future_story_parts)
-    return analysis, future_story
-
 def get_scenes_only(client: genai.Client, chars_data: User_Character, background_story: str, nb_scenes: int) -> list:
     """
     Helper function to get only the Scene objects

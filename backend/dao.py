@@ -30,9 +30,7 @@ class StoryDAO:
                 "nb_chars": story.nb_chars,
                 "story_mode": story.story_mode,
                 "cover_image_url": story.cover_image_url,
-                "cover_image_name": story.cover_image_name,
                 "background_story": story.background_story,
-                "future_story": story.future_story,
                 "scenes_paragraph": getattr(story, "scenes_paragraph", ""),
                 "status": "created",
                 "created_at": datetime.utcnow().isoformat(),
@@ -46,21 +44,6 @@ class StoryDAO:
         except Exception as e:
             print(f"Error creating story: {e}")
             return None
-    
-    def update_story_future_story(self, story: Story) -> bool:
-        """Update story with the generated future story"""
-        try:
-            update_data = {
-                "future_story": story.future_story,
-                "status": "story_generated",
-                "updated_at": datetime.utcnow().isoformat()
-            }
-            
-            result = self.db.table("stories").update(update_data).eq("id", story.id).execute()
-            return bool(result.data)
-        except Exception as e:
-            print(f"Error updating story future_story: {e}")
-            return False
     
     def update_story_complete(self, story: Story) -> bool:
         """Mark story as complete with images"""
@@ -85,7 +68,6 @@ class StoryDAO:
                 "nb_chars": story.nb_chars,
                 "story_mode": story.story_mode,
                 "cover_image_url": story.cover_image_url,
-                "cover_image_name": story.cover_image_name,
                 "background_story": story.background_story,
                 "scenes_paragraph": getattr(story, "scenes_paragraph", ""),  # Add scenes_paragraph
                 "updated_at": story.updated_at.isoformat() if story.updated_at else None
@@ -115,12 +97,10 @@ class StoryDAO:
                     nb_scenes=story_data.get("nb_scenes", 0),
                     nb_chars=story_data.get("nb_chars", 0),
                     story_mode=story_data.get("story_mode", ""),
-                    cover_image_url=story_data.get("cover_image_url", ""),
-                    cover_image_name=story_data.get("cover_image_name", "")
+                    cover_image_url=story_data.get("cover_image_url", "")
                 )
                 story.id = story_data.get("id")
                 story.background_story = story_data.get("background_story", "")
-                story.future_story = story_data.get("future_story", "")
                 story.scenes_paragraph = story_data.get("scenes_paragraph", "")  # Add scenes_paragraph
                 story.created_at = story_data.get("created_at")
                 story.updated_at = story_data.get("updated_at")
@@ -148,15 +128,13 @@ class StoryDAO:
                         nb_scenes=story_data.get("nb_scenes", 0),
                         nb_chars=story_data.get("nb_chars", 0),
                         story_mode=story_data.get("story_mode", ""),
-                        cover_image_url=story_data.get("cover_image_url", ""),
-                        cover_image_name=story_data.get("cover_image_name", "")
+                        cover_image_url=story_data.get("cover_image_url", "")
                     )
                     story.created_at = story_data.get("created_at")
                     story.updated_at = story_data.get("updated_at")
                     story.status = story_data.get("status", "created")
                     story.id = story_data.get("id")
                     story.background_story = story_data.get("background_story", "")
-                    story.future_story = story_data.get("future_story", "")
                     stories.append(story)
             
             return stories
@@ -181,12 +159,10 @@ class StoryDAO:
                         nb_scenes=story_data.get("nb_scenes", 0),
                         nb_chars=story_data.get("nb_chars", 0),
                         story_mode=story_data.get("story_mode", ""),
-                        cover_image_url=story_data.get("cover_image_url", ""),
-                        cover_image_name=story_data.get("cover_image_name", "")
+                        cover_image_url=story_data.get("cover_image_url", "")
                     )
                     story.id = story_data.get("id")
                     story.background_story = story_data.get("background_story", "")
-                    story.future_story = story_data.get("future_story", "")
                     stories.append(story)
             
             return stories
@@ -222,9 +198,7 @@ class CharacterDAO:
                 "name": character.name,
                 "description": character.description,
                 "image_url": character.image_url,  # Store image_url in image_url field
-                "image_name": character.image_name,  # Store image_name in new field
-                "analysis": character.analysis,
-                "created_at": datetime.utcnow().isoformat()
+                "analysis": character.analysis
             }
             
             result = self.db.table("user_character").insert(char_data).execute()
@@ -243,9 +217,7 @@ class CharacterDAO:
                 "name": character.name,
                 "description": character.description,
                 "image_url": character.image_url,  # Store image_url in image_url field
-                "image_name": character.image_name,  # Store image_name in new field
-                "analysis": character.analysis,
-                "updated_at": datetime.utcnow().isoformat()
+                "analysis": character.analysis
             }
             
             result = self.db.table("user_character").update(update_data).eq("id", character.id).execute()
@@ -269,8 +241,7 @@ class CharacterDAO:
         """Update character with AI analysis"""
         try:
             update_data = {
-                "analysis": character.analysis,
-                "updated_at": datetime.utcnow().isoformat()
+                "analysis": character.analysis
             }
             result = self.db.table("user_character").update(update_data).eq("id", character.id).execute()
             return bool(result.data)
@@ -297,10 +268,10 @@ class CharacterDAO:
             characters = []
             if result.data:
                 for char_data in result.data:
+                    print("char: ", char_data)
                     character = User_Character(
                         char_data.get("story_id", ""),  # story_id
                         char_data.get("image_url", ""),  # image_url
-                        char_data.get("image_name", ""),  # image_name
                         char_data.get("name", ""),      # name
                         char_data.get("description", "")  # description
                     )

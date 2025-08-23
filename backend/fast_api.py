@@ -98,7 +98,6 @@ class SimpleStoryRequest(BaseModel):
     story_mode: Optional[str] = None  # Made optional
     user_email: str  # Used to lookup user_id from users table
     cover_image_url: Optional[str] = None
-    cover_image_name: Optional[str] = None
     background_story: Optional[str] = None  # Added background_story field
 
 class StoryRequest(BaseModel):
@@ -110,9 +109,7 @@ class StoryRequest(BaseModel):
     story_mode: str
     user_id: Optional[str] = None
     cover_image_url: Optional[str] = None
-    cover_image_name: Optional[str] = None
     background_story: str = ""
-    future_story: str = ""
     characters: List[Dict[str, Any]] = []
 
 class CharacterRequest(BaseModel):
@@ -203,8 +200,7 @@ async def generate_story_only(request: StoryRequest):
                 nb_scenes=request.nb_scenes,
                 nb_chars=request.nb_chars,
                 story_mode=request.story_mode,
-                cover_image_url=request.cover_image_url,
-                cover_image_name=request.cover_image_name
+                cover_image_url=request.cover_image_url
             )
             story.id = story_dao.create_story(story)
         
@@ -227,7 +223,6 @@ async def generate_story_only(request: StoryRequest):
                 character = User_Character(
                     story.id,  # story_id
                     char_data["image_url"],  # image_url
-                    char_data.get("image_name", ""),  # image_name  
                     char_data["name"], 
                     char_data["description"]
                 )
@@ -444,7 +439,6 @@ async def generate_story_simple(request: SimpleStoryRequest, background_tasks: B
                     "nb_scenes": request.nb_scenes,
                     "nb_chars": request.nb_chars,
                     "cover_image_url": request.cover_image_url,
-                    "cover_image_name": request.cover_image_name,
                     "status": "created",
                     "created_at": datetime.utcnow().isoformat(),
                     "updated_at": datetime.utcnow().isoformat()
@@ -595,7 +589,12 @@ async def upload_story_character(
 
 @app.post("/api/stories/{story_id}/characters")
 async def save_story_characters(story_id: str, request: dict):
-    """Save/update characters for a specific story"""
+    """Save/update characters for a specific story (deprecated - use PUT)"""
+    return await update_story_characters(story_id, request)
+
+@app.put("/api/stories/{story_id}/characters")
+async def update_story_characters(story_id: str, request: dict):
+    """Update characters for a specific story"""
     if not dao_factory:
         return {
             "success": False,
@@ -615,9 +614,13 @@ async def save_story_characters(story_id: str, request: dict):
         
         # Get existing characters for this story
         existing_characters = character_dao.get_story_characters(story_id)
-        existing_char_map = {char.name: char for char in existing_characters}
+        existing_char_map_by_id = {char.id: char for char in existing_characters}
+        existing_char_map_by_name = {char.name: char for char in existing_characters}
+        
         for char_data in characters_data:
             name = char_data.get("name", "").strip()
+            char_id = char_data.get("id")
+            
             if not name:
                 continue
                 
@@ -625,29 +628,41 @@ async def save_story_characters(story_id: str, request: dict):
             character = User_Character(
                 story_id=story_id,
                 image_url=char_data.get("image_url"),
-                image_name=char_data.get("image_name"),
                 name=name,
                 description=char_data.get("description", "")
             )
             print("instance : ", character)
-            # Check if character already exists
-            if name in existing_char_map:
-                # Update existing character
-                existing_char = existing_char_map[name]
+            
+            # Check if character already exists by ID first, then by name
+            existing_char = None
+            if char_id and char_id in existing_char_map_by_id:
+                # Update existing character by ID (most reliable)
+                existing_char = existing_char_map_by_id[char_id]
                 character.id = existing_char.id
                 success = character_dao.update_character(character)
                 if success:
                     saved_characters.append({
                         "id": character.id,
                         "name": character.name,
-                        "action": "updated"
+                        "action": "updated_by_id"
+                    })
+            elif name in existing_char_map_by_name:
+                # Update existing character by name (fallback)
+                existing_char = existing_char_map_by_name[name]
+                character.id = existing_char.id
+                success = character_dao.update_character(character)
+                if success:
+                    saved_characters.append({
+                        "id": character.id,
+                        "name": character.name,
+                        "action": "updated_by_name"
                     })
             else:
                 # Create new character
-                char_id = character_dao.create_character(character, story_id)
-                if char_id:
+                new_char_id = character_dao.create_character(character, story_id)
+                if new_char_id:
                     saved_characters.append({
-                        "id": char_id,
+                        "id": new_char_id,
                         "name": character.name,
                         "action": "created"
                     })
@@ -659,10 +674,10 @@ async def save_story_characters(story_id: str, request: dict):
         }
         
     except Exception as e:
-        print(f"Error saving story characters: {e}")
+        print(f"Error updating story characters: {e}")
         return {
             "success": False,
-            "message": f"Error saving characters: {str(e)}"
+            "message": f"Error updating characters: {str(e)}"
         }
 
 @app.get("/api/stories/{story_id}")
@@ -678,7 +693,7 @@ async def get_story(story_id: str):
                 "background_story": "Your story is being generated...",
                 "created_at": datetime.utcnow().isoformat(),
                 "updated_at": datetime.utcnow().isoformat(),
-                "nb_scenes": 5
+                "nb_scenes": 4
             }
         }
     
@@ -709,9 +724,7 @@ async def get_story(story_id: str):
                 "nb_chars": story.nb_chars,
                 "story_mode": story.story_mode,
                 "cover_image_url": story.cover_image_url,
-                "cover_image_name": story.cover_image_name,
                 "background_story": story.background_story,
-                "future_story": story.future_story,
                 "scenes_paragraph": getattr(story, "scenes_paragraph", ""),  # Include scenes_paragraph
                 "created_at": story.created_at,
                 "updated_at": story.updated_at,
@@ -721,12 +734,12 @@ async def get_story(story_id: str):
             # Convert User_Character objects to dictionaries for JSON serialization
             characters_dict = []
             for char in characters:
+                print(f"🧑 Character '{char.name}': image_url = '{char.image_url}'")
                 char_dict = {
                     "id": char.id,
                     "name": char.name,
                     "description": char.description,
                     "image_url": char.image_url,  # Use image_url consistently
-                    "image_name": char.image_name,  # Include image_name as well
                     "analysis": getattr(char, "analysis", "")
                 }
                 characters_dict.append(char_dict)
@@ -828,7 +841,6 @@ async def update_story(story_id: str, request: SimpleStoryRequest):
         existing_story.nb_chars = request.nb_chars
         existing_story.story_mode = request.story_mode or ""  # Handle None values
         existing_story.cover_image_url = request.cover_image_url
-        existing_story.cover_image_name = request.cover_image_name
         existing_story.updated_at = datetime.utcnow()
         
         # Update background story if provided

@@ -21,7 +21,6 @@ interface StoryData {
   nb_chars: number;
   story_mode: string;
   cover_image_url?: string;
-  cover_image_name?: string;
   status: string;
   created_at: string;
   updated_at: string;
@@ -173,8 +172,7 @@ const EditStory = () => {
         nb_chars: numCharacters,
         story_mode: storyMode || null, // Allow empty story mode
         user_email: user?.email || "test@example.com",
-        cover_image_url: uploadedImageUrl || null,
-        cover_image_name: storyImage?.name || null
+        cover_image_url: uploadedImageUrl || null
       };
 
       console.log('Updating story data:', storyData);

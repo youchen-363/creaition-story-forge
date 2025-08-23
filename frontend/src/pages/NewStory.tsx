@@ -64,8 +64,7 @@ const NewStory = () => {
         nb_chars: numCharacters,
         story_mode: storyMode || null, // Allow empty story mode
         user_email: user?.email || "test@example.com", // Send email instead of user_id
-        cover_image_url: null, // Will be updated after image upload
-        cover_image_name: null
+        cover_image_url: null // Will be updated after image upload
       };
 
       console.log('Creating story:', storyData);
@@ -107,8 +106,7 @@ const NewStory = () => {
                 nb_chars: numCharacters,
                 story_mode: storyMode || null,
                 user_email: user?.email || "test@example.com",
-                cover_image_url: uploadResult.image_url,
-                cover_image_name: uploadResult.filename
+                cover_image_url: uploadResult.image_url
               };
               
               // Update the story record with the new image URL

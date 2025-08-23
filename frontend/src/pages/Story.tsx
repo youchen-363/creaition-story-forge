@@ -19,7 +19,6 @@ interface StoryData {
   nb_chars: number;
   story_mode: string;
   cover_image_url?: string;
-  cover_image_name?: string;
   background_story: string;
   future_story: string;
   scenes_paragraph?: string;  // Add scenes_paragraph field
@@ -43,8 +42,8 @@ const Story = () => {
   
   const [currentCharacter, setCurrentCharacter] = useState(0);
   const [characters, setCharacters] = useState([
-    { name: "", description: "", image: null as File | null, imageUrl: "" },
-    { name: "", description: "", image: null as File | null, imageUrl: "" }
+    { id: null, name: "", description: "", image: null as File | null, imageUrl: "" },
+    { id: null, name: "", description: "", image: null as File | null, imageUrl: "" }
   ]);
   
   // Add debugging for character state changes
@@ -168,12 +167,17 @@ const Story = () => {
         
         if (result.story.characters && result.story.characters.length > 0) {
           // Load existing characters from story data
-          const loadedCharacters = result.story.characters.map((char: any) => ({
-            name: char.name || "",
-            description: char.description || "",
-            image: null as File | null,
-            imageUrl: char.image_url || ""  // Use the image_url from database
-          }));
+          console.log("🔍 Raw characters from backend:", result.story.characters);
+          const loadedCharacters = result.story.characters.map((char: any, index: number) => {
+            console.log(`🧑 Character ${index}: name="${char.name}", image_url="${char.image_url}"`);
+            return {
+              id: char.id || null,  // Store the character ID for updates
+              name: char.name || "",
+              description: char.description || "",
+              image: null as File | null,
+              imageUrl: char.image_url || ""  // Use the image_url from database
+            };
+          });
           
           // Ensure we have the correct number of character slots based on nb_chars
           const expectedCharacterCount = result.story.nb_chars || 2;
@@ -182,6 +186,7 @@ const Story = () => {
           // Pad with empty characters if we have fewer than expected
           while (allCharacters.length < expectedCharacterCount) {
             allCharacters.push({
+              id: null,  // New characters don't have IDs yet
               name: "",
               description: "",
               image: null as File | null,
@@ -200,6 +205,7 @@ const Story = () => {
           // Initialize default characters based on nb_chars
           const numCharacters = result.story.nb_chars || 2;
           const initialCharacters = Array(numCharacters).fill(null).map(() => ({
+            id: null,  // New characters don't have IDs yet
             name: "",
             description: "",
             image: null as File | null,
@@ -341,7 +347,6 @@ const Story = () => {
         story_mode: storyData?.story_mode || "adventure",
         user_email: user?.email || "test@example.com", // Use actual user email
         cover_image_url: storyData?.cover_image_url || null,
-        cover_image_name: storyData?.cover_image_name || null,
         background_story: backgroundStory // Add background story to save to DB
       };
       
@@ -373,15 +378,15 @@ const Story = () => {
         const charactersData = {
           story_id: storyId,
           characters: charactersToSave.map(char => ({
+            id: char.id || null,  // Send character ID if it exists
             name: char.name,
             description: char.description,
-            image_url: char.imageUrl || null,  // Changed from img_url to image_url
-            image_name: char.image ? char.image.name : null  // Changed from img_name to image_name
+            image_url: char.imageUrl || null  // Changed from img_url to image_url
           }))
         };
 
         const updateCharsResponse = await fetch(`${API_URL}stories/${storyId}/characters`, {
-          method: 'POST',
+          method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
           },
@@ -409,14 +414,12 @@ const Story = () => {
         story_mode: storyData?.story_mode || "adventure",
         user_id: storyData?.user_id || user?.id,  // Use actual user_id from storyData
         cover_image_url: storyData?.cover_image_url || null,
-        cover_image_name: storyData?.cover_image_name || null,
         background_story: backgroundStory,
         future_story: "",
         characters: validCharacters.map(char => ({
           name: char.name,
           description: char.description,  // Changed from desc to description
-          image_url: char.imageUrl || null,  // Changed from img_url to image_url
-          image_name: char.image ? char.image.name : null  // Changed from img_name to image_name
+          image_url: char.imageUrl || null  // Changed from img_url to image_url
         }))
       };
 
@@ -701,6 +704,11 @@ const Story = () => {
                                 src={characters[currentCharacter].imageUrl}
                                 alt="Character"
                                 className="w-full h-full object-contain bg-gray-50"
+                                onLoad={() => console.log(`🖼️ Character image loaded: ${characters[currentCharacter].imageUrl}`)}
+                                onError={(e) => {
+                                  console.error(`❌ Character image failed to load: ${characters[currentCharacter].imageUrl}`, e);
+                                  console.error('Current target src:', (e.target as HTMLImageElement).src);
+                                }}
                               />
                             </div>
                             <Button
