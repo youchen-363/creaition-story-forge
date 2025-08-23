@@ -6,7 +6,7 @@ CreAItion is an AI-powered storytelling platform that enables users to transform
 
 This project is built with:
 - Backend: Python (FastAPI)
-- Frontend: Typescript (ReactJS + Vite), TailwindCSS
+- Frontend: Typescript (React + Vite), TailwindCSS
 - Database & Cloud Storage: PostgreSQL & Supabase
 - AI Integration: mllm gemini-2.5-flash & gemini-2.0-flash-preview-image-generation
 
